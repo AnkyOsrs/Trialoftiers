@@ -34,8 +34,8 @@
     /* Notification bar (small toast) */
     #notification-bar{
       position:fixed;
-      top:424px;
-      left:50%;
+      top:390px;
+      left:26%;
       transform:translateX(-50%);
       background:rgba(18,18,18,0);
       color:#03db47;
@@ -50,14 +50,15 @@
       opacity:0;
       pointer-events:none;
       transition:opacity .28s ease;
-      font-size:20px;
+      font-size:23px;
       font-family: "RunescapeOS", serif;
     }
     #notification-bar.show{ opacity:1; pointer-events:auto; }
 
     /* Main image container */
      #image-container {
-            position: relative;
+            transform: scale(1.4);
+            transform-origin: center;
             /* REMINDER: Replace 'Lit up OSRS Bossing Canvas.jpg' with your actual file name. */
             background-image: url('OSRS Bossing Canvas Updating.png');
             background-size: contain;
@@ -66,6 +67,8 @@
             width: 1000px;
             height: 600px; 
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+            margin: 128px 0px auto;
+            display: block;
         }
 
     }
@@ -93,11 +96,11 @@
       font-weight:700;
       color:#03db47;
       text-shadow:
-        0 1px 0 rgba(0,0,0,0.9),
-        0 6px 20px rgba(0,0,0,0.6),
-        0 0 6px rgba(0,0,0,0.6);
+        4px 2px 0 rgb(0 0 0 / 63%),
+        0 6px 20px #a6ff7a57,
+        0 0 6px rgba(0 0 0);
       display:inline-block;
-      padding:176px 443px;
+      padding:240px 443px;
       border-radius:8px;
 
       transform-origin:center;
@@ -119,7 +122,7 @@
     .xp-drop {
       position:absolute;
       left:50%;
-      top:50%;
+      top:35%;
       transform:translate(-50%, -10px);
       font-family:"RunescapeOS", serif;
       font-size:22px;
@@ -207,9 +210,7 @@
       overflow:hidden;
       z-index:1200;
       /* shape */
-      clip-path: polygon(
-          15% 0%, 85% 0%, 100% 15%, 100% 85%, 85% 100%, 15% 100%, 0% 85%, 0% 15%
-      );
+      clip-path: polygon(9.5% 0%, 91% 0%, 91.3% 5%, 95% 5.1%, 95.3% 9%, 95% 9%, 100% 9.4%,100% 91%, 95% 91%, 95% 95%, 91% 95%, 91% 100%, 9% 100%, 9% 95%, 6.5% 95%, 6.5% 91%, 0.5% 91%, 0.5% 9.5%, 6.5% 9.5%, 6.5% 6%, 9.5% 6%);
     }
     .boss-tile.completed {
       background: linear-gradient(180deg, rgba(0,200,90,0.12), rgba(134,241,182,0.08));
@@ -283,7 +284,7 @@
     #The-Whisperer { top: 471px; left: 688px; width: 71px; height: 71px; }
     #Vardorvis { top: 471px; left: 761px; width: 71px; height: 71px; }
     #Yama { top: 471px; left: 835px; width: 71px; height: 71px; }
-    #Shellbane_Gryphon { top: 168px; left: 542px; width: 71px; height: 71px; }
+    #Shellbane-Gryphon { top: 168px; left: 542px; width: 71px; height: 71px; }
     #Theatre-of-Blood { top: 471px; left: 908px; width: 71px; height: 71px; }
     #Brutus { top: 168px; left: 387px; width: 71px; height: 71px; }
 
@@ -312,6 +313,29 @@
       #percent { font-size: clamp(40px, 6vw, 64px); }
       #percent-wrap { width: 220px; height:100px; }
     }
+/* base tile (ALL bosses) */
+/* base tile */
+.boss-tile {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+/* hover for UNCOMPLETED tiles (GREY) */
+.boss-tile:hover:not(.completed) {
+  box-shadow: 0 0 12px rgba(180, 180, 180, 0.25);
+  background-color: rgba(180, 180, 180, 0.08);
+}
+
+/* hover for COMPLETED tiles (keep green but toned down) */
+.boss-tile.completed:hover {
+  box-shadow: 0 0 14px rgba(0, 200, 120, 0.35);
+  background-color: rgba(0, 200, 120, 0.10);
+}
+
+/* click feel */
+.boss-tile:active {
+  transform: scale(0.97);
+}
   </style>
 </head>
 <body>
@@ -387,7 +411,7 @@
     <div id="The-Whisperer" class="boss-tile" onclick="toggleComplete('The-Whisperer')"></div>
     <div id="Vardorvis" class="boss-tile" onclick="toggleComplete('Vardorvis')"></div>
     <div id="Yama" class="boss-tile" onclick="toggleComplete('Yama')"></div>
-    <div id="Shellbane_Gryphon" class="boss-tile" onclick="toggleComplete('Shellbane_Gryphon')"></div>
+    <div id="Shellbane-Gryphon" class="boss-tile" onclick="toggleComplete('Shellbane-Gryphon')"></div>
     <div id="Theatre-of-Blood" class="boss-tile" onclick="toggleComplete('Theatre-of-Blood')"></div>
     <div id="Brutus" class="boss-tile" onclick="toggleComplete('Brutus')"></div>
   </div>
@@ -403,7 +427,7 @@
       'Kril-Tsutsaroth','Commander-Zilyana','Zulrah','Araxxor','Cerberus','Alchemical-Hydra','Nex','Tombs-of-Amascut',
       'Vorkath','Phantom-Muspah','Nightmare','Thermonuclear-Smoke-Devil','Phosanis-Nightmare','Corrupted-Hunllef','Doom-of-Mokhaiotl','Chambers-of-Xeric',
       'Callisto','Vetion','Venenatis','Hunllef','Abyssal-Sire','Corporeal-Beast','Duke-Sucellus','The-Leviathan',
-      'The-Whisperer','Vardorvis','Yama','Shellbane_Gryphon','Theatre-of-Blood','Brutus'
+      'The-Whisperer','Vardorvis','Yama','Shellbane-Gryphon','Theatre-of-Blood','Brutus'
     ];
 
     const storageKey = 'osrsBossTrackerProgress_v2';
@@ -427,7 +451,7 @@
   tile.classList.toggle('completed');
 
   const wasComplete = tile.classList.contains('completed');
-  const displayName = bossId.replace('boss-','Boss #');
+  const displayName = bossId.replace(/-/g,' ');
 
   const msg = wasComplete ? `${displayName} marked as COMPLETE!` : `${displayName} marked as INCOMPLETE.`;
   showNotification(msg, 1600);
@@ -457,6 +481,11 @@
 
     // load progress and set initial UI
     function loadProgress(){
+const image = document.getElementById("image-container");
+
+image.addEventListener("mousemove", (e) => {
+  image.style.cursor = "pointer";
+});
       const raw = localStorage.getItem(storageKey);
       if(!raw) return updatePercentAndReturnDelta(); // compute initial
       try {
@@ -581,5 +610,3 @@
   </script>
 </body>
 </html>
-
-
