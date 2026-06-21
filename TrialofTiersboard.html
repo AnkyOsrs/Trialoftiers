@@ -16,8 +16,8 @@
     }
 
     :root{
-      --container-w: 1000px;
-      --container-h: 600px;
+      --image-w: 1280;   /* native pixel width of the source PNG */
+      --image-h: 720;    /* native pixel height of the source PNG */
     }
 
     body{
@@ -29,13 +29,14 @@
       background:#222;
       font-family: "RunescapeOS", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
       padding:20px;
+      box-sizing:border-box;
     }
 
     /* Notification bar (small toast) */
     #notification-bar{
-      position:fixed;
-      top:292px;
-      left:50%;
+      position:absolute;
+      Bottom:49.3%;
+      left:67.4%;
       transform:translateX(-50%);
       background:rgba(255, 160, 50, 0.55);
       color:#10ff5b;
@@ -50,48 +51,49 @@
       opacity:0;
       pointer-events:none;
       transition:opacity .28s ease;
-      font-size:23px;
+      font-size:clamp(16px, 2vw, 21px);
       font-family: "RunescapeOS", serif;
+      white-space:nowrap;
     }
+
     #notification-bar.show{ opacity:1; pointer-events:auto; }
 
-    /* Main image container */
-     #image-container {
-            transform: scale(1.4);
-            transform-origin: center;
-            /* REMINDER: Replace 'Lit up OSRS Bossing Canvas.jpg' with your actual file name. */
-            background-image: url('OSRS Bossing Canvas Updating.png');
-            background-size: contain;
-            background-repeat: no-repeat;
-            /* REMINDER: Adjust these dimensions to match your image file's exact size */
-            width: 1000px;
-            height: 600px; 
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
-            margin: 128px 0px auto;
-            display: block;
-        }
-
+    /* Main image container — fluid, scales between monitor sizes,
+       aspect-ratio keeps it locked to the source image proportions
+       so percentage-based tile coordinates always line up. */
+    #image-container {
+      position:relative;
+      width: min(92vw, 92vh * (1280/720));  /* fills most of the screen on any monitor, keeping the 1280:720 shape */
+      max-width: 2400px;   /* cap upscaling on very large/4K monitors so it doesn't get too soft */
+      aspect-ratio: 1280 / 720;
+      background-image: url('Website OSRS Bossing Canvas.png');
+      background-size: 100% 100%;
+      background-repeat: no-repeat;
+      background-position: center;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+      margin: 0 auto;
+      display: block;
     }
 
-     /* Percentage display centered inside image */
+    /* Percentage display centered inside image — positioned with
+       percentages so it scales/moves correctly with the image */
     #percent-wrap{
       position:absolute;
-      left: 200px;   /* adjust X position */
-    top: 150px;    /* adjust Y position */
-    transform: none;
+      left: 50%;   /* centered in the empty middle band above Inferno/Colosseum tiles */
+      top: 21.467%;
+      transform: translate(-50%, -50%);
       display:flex;
       align-items:center;
       justify-content:center;
       pointer-events:none; /* clicks go to tiles */
       z-index:1500;
-      width:300px;
-      height:120px;
-
+      width:23.438%;
+      height:12.5%;
     }
 
     #percent {
       font-family: "RunescapeOS", serif;
-      font-size:64px;
+      font-size: clamp(28px, 5vw, 64px);
       line-height:1;
       font-weight:700;
       color:#03db47;
@@ -100,9 +102,7 @@
         0 6px 20px #a6ff7a57,
         0 0 6px rgba(0 0 0);
       display:inline-block;
-      padding:240px 443px;
       border-radius:8px;
-
       transform-origin:center;
       transition: transform 220ms cubic-bezier(.2,.9,.2,1), color 200ms;
       pointer-events:none;
@@ -125,7 +125,7 @@
       top:35%;
       transform:translate(-50%, -10px);
       font-family:"RunescapeOS", serif;
-      font-size:22px;
+      font-size: clamp(14px, 1.8vw, 22px);
       font-weight:700;
       pointer-events:none;
       text-shadow: 0 1px 0 rgba(0,0,0,0.95);
@@ -133,6 +133,7 @@
       z-index:1600;
       color:#a6ff7a; /* XP color-ish */
       animation: xp-float 1100ms ease-out forwards;
+      white-space:nowrap;
     }
 
     @keyframes xp-float {
@@ -145,22 +146,22 @@
     /* Tier Completed glow overlay */
     #tier-badge {
       position:absolute;
-      left:50%;
-      bottom:88%;
+      left:24.8%;
+      bottom:46.5%;
       transform:translateX(-50%);
       font-family:"RunescapeOS", serif;
       padding:10px 18px;
       border-radius:10px;
-      font-size:20px;
+      font-size: clamp(15px, 3.6vw, 43px);
       letter-spacing:0.6px;
       display:none;
       z-index:1700;
       pointer-events:none;
-      color:#fff;
+      color:#10ff5b;
       text-shadow:
-        0 1px 0 rgba(0,0,0,0.9),
-        0 0 16px rgba(255,215,100,1);
-      background:linear-gradient(180deg, rgba(255,240,180,0.07), rgba(0,0,0,0.25));
+        0 1px 0 rgb(0 0 0), 0 0 16px #222;
+      background:linear-gradient(180deg, rgb(255 240 180 / 0%), rgb(0 0 0 / 0%));
+      white-space:nowrap;
     }
 
     /* glow effect applied to container when 100% */
@@ -201,15 +202,18 @@
       100% { transform: translate(-50%, 0) scale(1); opacity:1; }
     }
 
-    /* Boss tiles styles retained */
+    /* base tile (ALL bosses) — positioned with % so it scales/moves
+       with the image at any container size */
     .boss-tile {
       position:absolute;
       cursor:pointer;
       background-color: transparent;
-      transition: box-shadow 0.18s ease, transform 0.12s;
+      transition: box-shadow 0.18s ease, transform 0.12s, background-color 0.15s ease;
       overflow:hidden;
       z-index:1200;
-      /* shape */
+      
+      transform: translate(0px, 1px) scale(1.08);   /* nudge ALL tiles: first two numbers = left/right, up/down (px). scale = size. */
+      transform-origin: center;
       clip-path: polygon(9.5% 0%, 91% 0%, 91.3% 5%, 95% 5.1%, 95.3% 9%, 95% 9%, 100% 9.4%,100% 91%, 95% 91%, 95% 95%, 91% 95%, 91% 100%, 9% 100%, 9% 95%, 6.5% 95%, 6.5% 91%, 0.5% 91%, 0.5% 9.5%, 6.5% 9.5%, 6.5% 6%, 9.5% 6%);
     }
     .boss-tile.completed {
@@ -217,76 +221,96 @@
       box-shadow: inset 0 0 8px rgba(0,200,80);
     }
 
-    /* keep your tile coordinates (copied/kept from your original) */
+    /* hover for UNCOMPLETED tiles (GREY) */
+    .boss-tile:hover:not(.completed) {
+      box-shadow: 0 0 12px rgba(180, 180, 180, 0.25);
+      background-color: rgba(180, 180, 180, 0.08);
+    }
+
+    /* hover for COMPLETED tiles (keep green but toned down) */
+    .boss-tile.completed:hover {
+      box-shadow: 0 0 14px rgba(0, 200, 120, 0.35);
+      background-color: rgba(0, 200, 120, 0.10);
+    }
+
+    /* click feel */
+    .boss-tile:active {
+      transform: translate(0px, 0px) scale(1.11);  /* keep translate matching the base rule above */
+    }
+
+    /* ===== Tile coordinates — % of image (1280x720), measured directly
+       from the source PNG's tile-grid pixels for pixel-accurate placement ===== */
+    /* row 0 */
+    #Obor { top: 4.028%; left: 2.344%; width: 6.484%; height: 11.528%; }
+    #Bryophyta { top: 4.028%; left: 9.609%; width: 6.484%; height: 11.528%; }
+    #Giant-Mole { top: 4.028%; left: 16.953%; width: 6.484%; height: 11.528%; }
+    #Scurrius { top: 4.028%; left: 24.297%; width: 6.484%; height: 11.528%; }
+    #Sarachnis { top: 4.028%; left: 31.641%; width: 6.484%; height: 11.528%; }
+    #Prime { top: 4.028%; left: 61.797%; width: 6.484%; height: 11.528%; }
+    #Supreme { top: 4.028%; left: 69.141%; width: 6.484%; height: 11.528%; }
+    #Rex { top: 4.028%; left: 76.484%; width: 6.484%; height: 11.528%; }
+    #Calvarion { top: 4.028%; left: 83.75%; width: 6.484%; height: 11.528%; }
+    #Spindel { top: 4.028%; left: 91.016%; width: 6.484%; height: 11.528%; }
     /* row 1 */
-    #Obor { top: 20px; left: 20px; width: 71px; height: 71px; }
-    #Bryophyta { top: 20px; left: 94px; width: 71px; height: 71px; }
-    #Giant-Mole { top: 20px; left: 167px; width: 71px; height: 71px; }
-    #Scurrius { top: 20px; left: 241px; width: 71px; height: 71px; }
-    #Sarachnis { top: 20px; left: 314px; width: 71px; height: 71px; }
-    #Prime { top: 20px; left: 615px; width: 71px; height: 71px; }
-    #Supreme { top: 20px; left: 688px; width: 71px; height: 71px; }
-    #Rex { top: 20px; left: 761px; width: 71px; height: 71px; }
-    #Calvarion { top: 20px; left: 835px; width: 71px; height: 71px; }
-    #Spindel { top: 20px; left: 908px; width: 71px; height: 71px; }
+    #KBD { top: 17.083%; left: 2.344%; width: 6.484%; height: 11.528%; }
+    #Amoxliatl { top: 17.083%; left: 9.609%; width: 6.484%; height: 11.528%; }
+    #Barrows { top: 17.083%; left: 31.641%; width: 6.484%; height: 11.528%; }
+    #Jad { top: 40.583%; left: 46.719%; width: 6.506%; height: 11.528%; }
+    #Chaos-Elemental { top: 17.083%; left: 61.797%; width: 6.484%; height: 11.528%; }
+    #Hueycoatl { top: 17.083%; left: 83.75%; width: 6.484%; height: 11.528%; }
+    #Artio { top: 17.083%; left: 91.016%; width: 6.484%; height: 11.528%; }
     /* row 2 */
-    #KBD { top: 94px; left: 20px; width: 71px; height: 71px; }
-    #Amoxliatl { top: 94px; left: 94px; width: 71px; height: 71px; }
-    #Barrows { top: 94px; left: 314px; width: 71px; height: 71px; }
-    #Jad { top: 94px; left: 464px; width: 71px; height: 71px; }
-    #Chaos-Elemental { top: 94px; left: 615px; width: 71px; height: 71px; }
-    #Hueycoatl { top: 94px; left: 835px; width: 71px; height: 71px; }
-    #Artio { top: 94px; left: 908px; width: 71px; height: 71px; }
-    /* row 3 */
-    #Deranged-Archaeologist { top: 167px; left: 20px; width: 71px; height: 71px; }
-    #Chaos-Fanatic { top: 167px; left: 94px; width: 71px; height: 71px; }
-    #Crazy-Archaeologist { top: 167px; left: 167px; width: 71px; height: 71px; }
-    #Royal-Titans { top: 167px; left: 241px; width: 71px; height: 71px; }
-    #Moons { top: 167px; left: 314px; width: 71px; height: 71px; }
-    #Scorpia { top: 167px; left: 615px; width: 71px; height: 71px; }
-    #Grotesque-Guardians { top: 167px; left: 688px; width: 71px; height: 71px; }
-    #Zalcano { top: 167px; left: 761px; width: 71px; height: 71px; }
-    #Kracken { top: 167px; left: 835px; width: 71px; height: 71px; }
-    #Kalphite-Queen { top: 167px; left: 908px; width: 71px; height: 71px; }
+    #Deranged-Archaeologist { top: 30.139%; left: 2.344%; width: 6.484%; height: 11.528%; }
+    #Chaos-Fanatic { top: 30.139%; left: 9.609%; width: 6.484%; height: 11.528%; }
+    #Crazy-Archaeologist { top: 30.139%; left: 16.953%; width: 6.484%; height: 11.528%; }
+    #Royal-Titans { top: 30.139%; left: 24.297%; width: 6.484%; height: 11.528%; }
+    #Moons { top: 30.139%; left: 31.641%; width: 6.484%; height: 11.528%; }
+    #Brutus { top: 30.139%; left: 38.984%; width: 6.484%; height: 11.389%; }
+    #Shellbane-Gryphon { top: 30.278%; left: 54.531%; width: 6.484%; height: 11.389%; }
+    #Scorpia { top: 30.139%; left: 61.797%; width: 6.484%; height: 11.528%; }
+    #Grotesque-Guardians { top: 30.139%; left: 69.141%; width: 6.484%; height: 11.528%; }
+    #Zalcano { top: 30.139%; left: 76.484%; width: 6.484%; height: 11.528%; }
+    #Kracken { top: 30.139%; left: 83.75%; width: 6.484%; height: 11.528%; }
+    #Kalphite-Queen { top: 30.139%; left: 91.016%; width: 6.484%; height: 11.528%; }
+    /* corner specialty tiles */
+    #Hespori { top: 43.961%; left: 2.419%; width: 6.531%; height: 11.578%; }
+    #Skotizo { top: 43.961%; left: 90.969%; width: 6.531%; height: 11.578%; }
+    /* center specialty tiles */
+    #Inferno { top: 54.306%; left: 42.122%; width: 6.506%; height: 11.489%; }
+    #Fortis-Colosseum { top: 54.306%; left: 51.341%; width: 6.506%; height: 11.489%; }
     /* row 4 */
-    #Hespori { top: 245px; left: 22px; width: 71px; height: 71px; }
-    #Skotizo { top: 245px; left: 908px; width: 71px; height: 71px; }
-    #Inferno { top: 304px; left: 422px; width: 71px; height: 71px; }
-    #Fortis-Colosseum { top: 304px; left: 514px; width: 71px; height: 71px; }
-    #Kreearra { top: 324px; left: 20px; width: 71px; height: 71px; }
-    #General-Graardor { top: 324px; left: 94px; width: 71px; height: 71px; }
-    #Kril-Tsutsaroth { top: 324px; left: 167px; width: 71px; height: 71px; }
-    #Commander-Zilyana { top: 324px; left: 241px; width: 71px; height: 71px; }
-    #Zulrah { top: 324px; left: 314px; width: 71px; height: 71px; }
-    #Araxxor { top: 324px; left: 615px; width: 71px; height: 71px; }
-    #Cerberus { top: 324px; left: 688px; width: 71px; height: 71px; }
-    #Alchemical-Hydra { top: 324px; left: 761px; width: 71px; height: 71px; }
-    #Nex { top: 324px; left: 835px; width: 71px; height: 71px; }
-    #Tombs-of-Amascut { top: 324px; left: 908px; width: 71px; height: 71px; }
+    #Kreearra { top: 58.056%; left: 2.344%; width: 6.484%; height: 11.528%; }
+    #General-Graardor { top: 58.056%; left: 9.609%; width: 6.484%; height: 11.528%; }
+    #Kril-Tsutsaroth { top: 58.056%; left: 16.953%; width: 6.484%; height: 11.528%; }
+    #Commander-Zilyana { top: 58.056%; left: 24.297%; width: 6.484%; height: 11.528%; }
+    #Zulrah { top: 58.056%; left: 31.641%; width: 6.484%; height: 11.528%; }
+    #Araxxor { top: 58.056%; left: 61.797%; width: 6.484%; height: 11.528%; }
+    #Cerberus { top: 58.056%; left: 69.141%; width: 6.484%; height: 11.528%; }
+    #Alchemical-Hydra { top: 58.056%; left: 76.484%; width: 6.484%; height: 11.528%; }
+    #Nex { top: 58.056%; left: 83.75%; width: 6.484%; height: 11.528%; }
+    #Tombs-of-Amascut { top: 58.056%; left: 91.016%; width: 6.484%; height: 11.528%; }
     /* row 5 */
-    #Vorkath { top: 397px; left: 20px; width: 71px; height: 71px; }
-    #Phantom-Muspah { top: 397px; left: 94px; width: 71px; height: 71px; }
-    #Nightmare { top: 397px; left: 314px; width: 71px; height: 71px; }
-    #Thermonuclear-Smoke-Devil { top: 397px; left: 387px; width: 71px; height: 71px; }
-    #Phosanis-Nightmare { top: 397px; left: 543px; width: 71px; height: 71px; }
-    #Corrupted-Hunllef { top: 397px; left: 616px; width: 71px; height: 71px; }
-    #Doom-of-Mokhaiotl { top: 397px; left: 835px; width: 71px; height: 71px; }
-    #Chambers-of-Xeric { top: 397px; left: 908px; width: 71px; height: 71px; }
+    #Vorkath { top: 71.111%; left: 2.344%; width: 6.484%; height: 11.528%; }
+    #Phantom-Muspah { top: 71.111%; left: 9.609%; width: 6.484%; height: 11.528%; }
+    #Nightmare { top: 71.111%; left: 31.641%; width: 6.484%; height: 11.389%; }
+    #Thermonuclear-Smoke-Devil { top: 71.011%; left: 38.935%; width: 6.584%; height: 11.589%; }
+    #Phosanis-Nightmare { top: 71.111%; left: 54.531%; width: 6.406%; height: 11.389%; }
+    #Corrupted-Hunllef { top: 71.111%; left: 61.797%; width: 6.484%; height: 11.389%; }
+    #Doom-of-Mokhaiotl { top: 71.111%; left: 83.75%; width: 6.484%; height: 11.389%; }
+    #Chambers-of-Xeric { top: 71.111%; left: 91.016%; width: 6.484%; height: 11.389%; }
     /* row 6 */
-    #Callisto { top: 471px; left: 20px; width: 71px; height: 71px; }
-    #Vetion { top: 471px; left: 94px; width: 71px; height: 71px; }
-    #Venenatis { top: 471px; left: 167px; width: 71px; height: 71px; }
-    #Hunllef { top: 471px; left: 241px; width: 71px; height: 71px; }
-    #Abyssal-Sire { top: 471px; left: 314px; width: 71px; height: 71px; }
-    #Corporeal-Beast { top: 471px; left: 387px; width: 71px; height: 71px; }
-    #Duke-Sucellus { top: 471px; left: 543px; width: 71px; height: 71px; }
-    #The-Leviathan { top: 471px; left: 615px; width: 71px; height: 71px; }
-    #The-Whisperer { top: 471px; left: 688px; width: 71px; height: 71px; }
-    #Vardorvis { top: 471px; left: 761px; width: 71px; height: 71px; }
-    #Yama { top: 471px; left: 835px; width: 71px; height: 71px; }
-    #Shellbane-Gryphon { top: 168px; left: 542px; width: 71px; height: 71px; }
-    #Theatre-of-Blood { top: 471px; left: 908px; width: 71px; height: 71px; }
-    #Brutus { top: 168px; left: 387px; width: 71px; height: 71px; }
+    #Callisto { top: 84.028%; left: 2.344%; width: 6.484%; height: 11.528%; }
+    #Vetion { top: 84.028%; left: 9.609%; width: 6.484%; height: 11.528%; }
+    #Venenatis { top: 84.028%; left: 16.953%; width: 6.484%; height: 11.528%; }
+    #Hunllef { top: 84.028%; left: 24.297%; width: 6.484%; height: 11.528%; }
+    #Abyssal-Sire { top: 84.028%; left: 31.641%; width: 6.484%; height: 11.528%; }
+    #Corporeal-Beast { top: 84.028%; left: 38.984%; width: 6.484%; height: 11.528%; }
+    #Duke-Sucellus { top: 84.028%; left: 54.531%; width: 6.406%; height: 11.528%; }
+    #The-Leviathan { top: 84.028%; left: 61.797%; width: 6.484%; height: 11.528%; }
+    #The-Whisperer { top: 84.028%; left: 69.141%; width: 6.484%; height: 11.667%; }
+    #Vardorvis { top: 84.028%; left: 76.484%; width: 6.484%; height: 11.528%; }
+    #Yama { top: 84.028%; left: 83.75%; width: 6.406%; height: 11.528%; }
+    #Theatre-of-Blood { top: 84.028%; left: 91.016%; width: 6.484%; height: 11.528%; }
 
     /* small helper link area for downloading font if needed */
     #helpers {
@@ -295,7 +319,7 @@
       gap:12px;
       justify-content:center;
       width:100%;
-      max-width:var(--container-w);
+      max-width:1280px;
     }
     #helpers a {
       color:#fff;
@@ -306,49 +330,19 @@
       font-size:13px;
       box-shadow:0 6px 14px rgba(0,0,0,0.6);
     }
-
-    /* small responsive tweak */
-    @media (max-width:1100px){
-      :root{ --container-w: 92vw; --container-h: calc(92vw * 0.6); }
-      #percent { font-size: clamp(40px, 6vw, 64px); }
-      #percent-wrap { width: 220px; height:100px; }
-    }
-/* base tile (ALL bosses) */
-/* base tile */
-.boss-tile {
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-/* hover for UNCOMPLETED tiles (GREY) */
-.boss-tile:hover:not(.completed) {
-  box-shadow: 0 0 12px rgba(180, 180, 180, 0.25);
-  background-color: rgba(180, 180, 180, 0.08);
-}
-
-/* hover for COMPLETED tiles (keep green but toned down) */
-.boss-tile.completed:hover {
-  box-shadow: 0 0 14px rgba(0, 200, 120, 0.35);
-  background-color: rgba(0, 200, 120, 0.10);
-}
-
-/* click feel */
-.boss-tile:active {
-  transform: scale(0.97);
-}
   </style>
 </head>
 <body>
 
   <audio id="completion-sound" src="UniqueDrop.mp3" preload="auto"></audio>
-  
+
   <div id="notification-bar" aria-live="polite"></div>
 
   <div id="image-container" role="application" aria-label="OSRS Trial of Tiers tracker">
     <div id="percent-wrap" aria-hidden="true">
       <div id="percent">0%</div>
     </div>
-
+    <div id="tier-badge">Trial of Tiers Completed!</div>
 
     <!-- boss tiles (click to toggle) -->
     <div id="Obor" class="boss-tile" onclick="toggleComplete('Obor')"></div>
@@ -416,7 +410,6 @@
     <div id="Brutus" class="boss-tile" onclick="toggleComplete('Brutus')"></div>
   </div>
 
-
   <script>
     // boss list
     const bossTiles = [
@@ -444,30 +437,29 @@
     }
 
     // toggle a tile's completion
-   function toggleComplete(bossId){
-  const tile = document.getElementById(bossId);
-  if(!tile) return;
+    function toggleComplete(bossId){
+      const tile = document.getElementById(bossId);
+      if(!tile) return;
 
-  tile.classList.toggle('completed');
+      tile.classList.toggle('completed');
 
-  const wasComplete = tile.classList.contains('completed');
-  const displayName = bossId.replace(/-/g,' ');
+      const wasComplete = tile.classList.contains('completed');
+      const displayName = bossId.replace(/-/g,' ');
 
-  const msg = wasComplete ? `${displayName} marked as COMPLETE!` : `${displayName} marked as INCOMPLETE.`;
-  showNotification(msg, 1600);
+      const msg = wasComplete ? `${displayName} marked as COMPLETE!` : `${displayName} marked as INCOMPLETE.`;
+      showNotification(msg, 1600);
 
-  // 🔊 PLAY SOUND WHEN TILE BECOMES COMPLETED
-  if (wasComplete) {
-    const sound = document.getElementById("completion-sound");
-    sound.currentTime = 0;
-    sound.play().catch(()=>{});
-  }
+      // play sound when tile becomes completed
+      if (wasComplete) {
+        const sound = document.getElementById("completion-sound");
+        sound.currentTime = 0;
+        sound.play().catch(()=>{});
+      }
 
-  saveProgress();
-  const {percent, delta} = updatePercentAndReturnDelta();
-  animatePercentChange(percent, delta, wasComplete);
-}
-
+      saveProgress();
+      const {percent, delta} = updatePercentAndReturnDelta();
+      animatePercentChange(percent, delta);
+    }
 
     // save progress to localStorage
     function saveProgress(){
@@ -481,11 +473,6 @@
 
     // load progress and set initial UI
     function loadProgress(){
-const image = document.getElementById("image-container");
-
-image.addEventListener("mousemove", (e) => {
-  image.style.cursor = "pointer";
-});
       const raw = localStorage.getItem(storageKey);
       if(!raw) return updatePercentAndReturnDelta(); // compute initial
       try {
@@ -532,7 +519,6 @@ image.addEventListener("mousemove", (e) => {
       // tier complete / glow
       if(newPercent === 100){
         imgContainer.classList.add('tier-complete');
-        // subtle notification
         showNotification('Trial of Tiers Completed!', 2600);
       } else {
         imgContainer.classList.remove('tier-complete');
@@ -543,27 +529,21 @@ image.addEventListener("mousemove", (e) => {
 
     // xp-drop animation: create floating element and show change
     function animatePercentChange(percent, delta){
-      // always show a small XP-drop for the new percent (like OSRS)
       const xp = document.createElement('div');
       xp.className = 'xp-drop';
-      // show +N% if positive delta else show percent
       if(delta > 0) xp.textContent = `+${delta}%`;
       else if(delta < 0) xp.textContent = `${delta}%`;
       else xp.textContent = `${percent}%`;
 
-      // position it near the percentWrap (center)
       const wrap = document.getElementById('percent-wrap');
       wrap.appendChild(xp);
-
-      // remove element after animation finishes
       xp.addEventListener('animationend', ()=> xp.remove());
 
       // extra sparkle/pop for 100%
-      if(percent === 100 || becameCompleteFlag){
-        // small extra burst text
+      if(percent === 100){
         const burst = document.createElement('div');
         burst.className = 'xp-drop';
-        burst.style.fontSize = '28px';
+        burst.style.fontSize = 'clamp(20px, 2.5vw, 28px)';
         burst.style.color = '#fff1b3';
         burst.style.textShadow = '0 0 12px rgba(255,220,90,0.95)';
         burst.textContent = '100%';
@@ -586,20 +566,17 @@ image.addEventListener("mousemove", (e) => {
 
     // initialize on load
     (function init(){
-      // ensure percent dataset has a base
       if(!percentEl.dataset.lastPercent) percentEl.dataset.lastPercent = '0';
 
-      // load progress from storage and set UI
       const { percent } = loadProgress() || {percent:0};
-      // small initial pop so it doesn't look dead
       percentEl.classList.add('pop');
-      // accessibility: announce initial percent
+
       setTimeout(()=> {
         const p = parseInt(percentEl.textContent.replace('%',''),10) || 0;
         if(p === 100) imgContainer.classList.add('tier-complete');
       }, 240);
 
-      // keyboard support: allow toggling selected tile with Enter if focused
+      // keyboard support: allow toggling selected tile with Enter/Space if focused
       document.querySelectorAll('.boss-tile').forEach(el=>{
         el.tabIndex = 0;
         el.addEventListener('keydown', (e)=>{
