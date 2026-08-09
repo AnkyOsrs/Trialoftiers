@@ -32,13 +32,13 @@
       box-sizing:border-box;
     }
 
-    /* Notification bar (small toast) — now lives INSIDE #image-container,
+    /* Notification bar (small toast) — lives INSIDE #image-container,
        so left/top/bottom are percentages of the image itself and it scales
-       and tracks the image exactly the way #percent-wrap does, at any
+       and tracks the image exactly the way #level-wrap does, at any
        window size or resolution. */
     #notification-bar{
       position:absolute;
-      bottom:46.2%;
+      bottom:43.7%;
       left:75.4%;
       transform:translateX(-50%);
       color:#10ff5b;
@@ -46,7 +46,7 @@
         0 1px 0 rgba(0,0,0,0.9),
         0 6px 20px rgba(0,0,0,0.6),
         0 0 6px rgba(0,0,0,0.6);
-      padding: 1.4cqw 2.4cqw;
+      padding: 0.2cqw 0.3cqw;
       border-radius:8px;
       z-index:2000;
       opacity:0;
@@ -54,7 +54,9 @@
       transition:opacity .28s ease;
       font-size:1.7cqw;
       font-family: "RunescapeOS", serif;
-      white-space:nowrap;
+      white-space:pre-line;
+      text-align:center;
+      line-height:1.35;
     }
 
     #notification-bar.show{ opacity:1; pointer-events:auto; }
@@ -78,40 +80,129 @@
       display: block;
     }
 
-    /* Percentage display centered inside image — positioned with
-       percentages so it scales/moves correctly with the image */
-    #percent-wrap{
+    /* ============ LEVEL / XP WIDGET (replaces the old percent display) ============
+       #level-wrap is just a full-bleed, non-interactive positioning layer.
+       Inside it:
+         - .level-slot elements each hold ONE copy of the level number (and,
+           for slot 1 only, the little sword icon + hover tooltip). There are
+           two slots (#level-slot-1, #level-slot-2) showing the exact same
+           number, kept in sync by JS — move each slot's left/top independently
+           to place the two numbers anywhere on the board.
+         - #xp-bar-wrap holds the xp progress bar and has its OWN left/top,
+           completely independent of both number slots.
+       Edit the left/top (and transform, if you want a different anchor point)
+       on #level-slot-1, #level-slot-2, and #xp-bar-wrap below to reposition
+       each piece separately. */
+    #level-wrap{
       position:absolute;
-      left: 22%;   /* centered in the empty middle band above Inferno/Colosseum tiles */
-      top: 50%;
-      transform: translate(-50%, -50%);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      pointer-events:none; /* clicks go to tiles */
+      inset:0;
+      pointer-events:none;
       z-index:1500;
-      width:23.438%;
-      height:12.5%;
     }
 
-    #percent {
+    .level-slot{
+      position:absolute;
+      left:21.4%;
+      top:47.4%;
+      transform:translate(-50%, -50%);
+      display:flex;
+      align-items:center;
+      gap:0.7cqw;
+      pointer-events:auto;
+      cursor:default;
+    }
+
+    /* Slot 2 is the duplicate. Same left/top as slot 1 by default (so they
+       currently sit on top of one another) — change these to move the
+       second number anywhere else on the board. */
+    #level-slot-2{
+      left:27.3%;
+      top:53.8%;
+    }
+
+    .level-icon{
+      width:4.4cqw;
+      height:4.4cqw;
+      flex:0 0 auto;
+      filter: drop-shadow(0 2px 3px rgba(0,0,0,0.8));
+    }
+    .level-icon svg{ width:271%; height:166%; display:block; }
+
+    .level-number {
       font-family: "RunescapeOS", serif;
-      font-size: 5.5cqw;
+      font-size: 4cqw;
       line-height:1;
       font-weight:700;
-      color:#03db47;
+      color:#ffff00;
       text-shadow:
         4px 2px 0 rgb(0 0 0 / 63%),
-        0 6px 20px #a6ff7a57,
+        0 6px 20px #ffff0000,
         0 0 6px rgba(0 0 0);
       display:inline-block;
       border-radius:8px;
       transform-origin:center;
       transition: transform 220ms cubic-bezier(.2,.9,.2,1), color 200ms;
-      pointer-events:none;
     }
 
-    /* Pop animation for the main percent when it changes */
+    /* xp bar — positioned completely independently of the level number slots */
+    #xp-bar-wrap{
+      position:absolute;
+      left:22.3%;
+      top:56.8%;
+      transform:translate(-50%, -50%);
+      width:25.5%;
+      pointer-events:none;
+    }
+    #xp-bar-track{
+      width:55.2%;
+      height:0.4cqw;
+      min-height:5px;
+      margin:0 auto;
+      background:rgba(0,0,0,0.55);
+      border:1px solid rgba(255,255,255,0.18);
+      border-radius:5px;
+      overflow:hidden;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
+    }
+    #xp-bar-fill{
+      height:100%;
+      width:0%;
+      background:linear-gradient(90deg,#0ecb46,#4dffa0);
+      box-shadow: 0 0 6px rgba(80,255,140,0.7);
+      transition: width 320ms ease;
+    }
+
+    /* Tooltip: total xp + xp to next level. Shown on hover of slot 1 (the
+       icon + number pairing). */
+    #level-tooltip{
+      position:absolute;
+      bottom:112%;
+      left:50%;
+      transform:translateX(-50%);
+      background:rgba(8,12,8,0.94);
+      border:1px solid rgba(120,255,150,0.4);
+      border-radius:7px;
+      padding:0.7cqw 1.1cqw;
+      font-size:1.05cqw;
+      color:#daffe4;
+      white-space:nowrap;
+      text-align:center;
+      line-height:1.6;
+      opacity:0;
+      pointer-events:none;
+      transition:opacity 150ms ease;
+      z-index:2100;
+      box-shadow:0 6px 18px rgba(0,0,0,0.6);
+    }
+    #level-tooltip .tt-title{
+      color:#fff1b3;
+      font-size:1.1cqw;
+      display:block;
+      margin-bottom:0.15cqw;
+    }
+    #level-slot-1:hover #level-tooltip{ opacity:1; }
+
+    /* Pop animation for the level number(s) when they change */
     .pop {
       animation: pop-scale 420ms cubic-bezier(.2,.9,.2,1);
     }
@@ -125,17 +216,17 @@
     .xp-drop {
       position:absolute;
       left:50%;
-      top:35%;
+      top:8%;
       transform:translate(-50%, -10px);
       font-family:"RunescapeOS", serif;
-      font-size: 2cqw;
+      font-size: 1.7cqw;
       font-weight:700;
       pointer-events:none;
       text-shadow: 0 1px 0 rgba(0,0,0,0.95);
       will-change: transform, opacity;
       z-index:1600;
       color:#a6ff7a; /* XP color-ish */
-      animation: xp-float 1100ms ease-out forwards;
+      animation: xp-float 1300ms ease-out forwards;
       white-space:nowrap;
     }
 
@@ -167,7 +258,7 @@
       white-space:nowrap;
     }
 
-    /* glow effect applied to container when 100% */
+    /* glow effect applied to container when level 99 is reached */
     #image-container.tier-complete::after {
       content: "";
       position: absolute;
@@ -187,7 +278,7 @@
       to { filter: drop-shadow(0 0 26px rgba(255,160,50,0.9)); transform: translateY(-2px); }
     }
 
-    #image-container.tier-complete #percent {
+    #image-container.tier-complete .level-number {
       color: #fff9e6;
       text-shadow:
         0 1px 0 rgba(0,0,0,0.95),
@@ -211,10 +302,10 @@
       position:absolute;
       cursor:pointer;
       background-color: transparent;
-      transition: box-shadow 0.18s ease, transform 0.12s, background-color 0.15s ease;
+      transition: box-shadow 0.18s ease, transform 0.12s, background-color 0.15s ease, filter 0.2s ease;
       overflow:hidden;
       z-index:1200;
-      
+
       transform: translate(0px, 1px) scale(1.08);   /* nudge ALL tiles: first two numbers = left/right, up/down (px). scale = size. */
       transform-origin: center;
       clip-path: polygon(9.5% 0%, 91% 0%, 91.3% 5%, 95% 5.1%, 95.3% 9%, 95% 9%, 100% 9.4%,100% 91%, 95% 91%, 95% 95%, 91% 95%, 91% 100%, 9% 100%, 9% 95%, 6.5% 95%, 6.5% 91%, 0.5% 91%, 0.5% 9.5%, 6.5% 9.5%, 6.5% 6%, 9.5% 6%);
@@ -246,8 +337,8 @@
       pointer-events:none;
     }
 
-    /* hover for UNCOMPLETED tiles (GREY) */
-    .boss-tile:hover:not(.completed) {
+    /* hover for UNCOMPLETED, UNLOCKED tiles (GREY) */
+    .boss-tile:hover:not(.completed):not(.locked) {
       box-shadow: 0 0 12px rgba(180, 180, 180, 0.25);
       background-color: rgba(180, 180, 180, 0.08);
     }
@@ -267,9 +358,37 @@
         rgba(90,255,130,0.0) 82%);
     }
 
+    /* ===== Locked tiles (tier not yet unlocked by Board Level) =====
+       Desaturated / darkened + a padlock glyph. Click still fires but is
+       intercepted in JS and shows a toast instead of completing the tile. */
+    .boss-tile.locked {
+      cursor: not-allowed;
+      filter: grayscale(1) brightness(0.42);
+    }
+    .boss-tile.locked:hover {
+      box-shadow: none;
+      background-color: transparent;
+    }
+    .boss-tile.locked::before {
+      content: "🔒";
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size: 3.2cqw;
+      color: rgba(255,255,255,0.88);
+      text-shadow: 0 2px 5px rgba(0,0,0,0.95);
+      z-index: 5;
+      pointer-events:none;
+    }
+
     /* click feel */
     .boss-tile:active {
       transform: translate(0px, 0px) scale(1.11);  /* keep translate matching the base rule above */
+    }
+    .boss-tile.locked:active {
+      transform: translate(0px, 1px) scale(1.08); /* locked tiles don't get the press-in feedback */
     }
 
     /* ===== Tile coordinates — % of image (1280x720), measured directly
@@ -371,12 +490,38 @@
 <body>
 
   <audio id="completion-sound" src="UniqueDrop.mp3" preload="auto"></audio>
+  <audio id="levelup-sound" src="UniqueDrop.mp3" preload="auto"></audio>
 
   <div id="image-container" role="application" aria-label="OSRS Trial of Tiers tracker">
     <div id="notification-bar" aria-live="polite"></div>
-    <div id="percent-wrap" aria-hidden="true">
-      <div id="percent">0%</div>
+
+    <!-- Board Level widget (OSRS skill-orb style). #level-slot-1 (icon + first
+         number + hover tooltip) and #level-slot-2 (duplicate number only) can
+         each be repositioned independently via their CSS left/top. #xp-bar-wrap
+         is a third, fully independent positioning group for the progress bar. -->
+    <div id="level-wrap">
+      <div id="level-slot-1" class="level-slot">
+        <div id="level-tooltip">
+          <span class="tt-title">Board Level</span>
+          <span id="tt-total-xp">Total XP: 0</span><br/>
+          <span id="tt-next-level">XP to next level: 0</span>
+        </div>
+        <div class="level-icon">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          </svg>
+        </div>
+        <div class="level-number">1</div>
+      </div>
+
+      <div id="level-slot-2" class="level-slot">
+        <div class="level-number">1</div>
+      </div>
+
+      <div id="xp-bar-wrap">
+        <div id="xp-bar-track"><div id="xp-bar-fill"></div></div>
+      </div>
     </div>
+
     <div id="tier-badge">Trial of Tiers Completed!</div>
 
     <!-- boss tiles (click to toggle) -->
@@ -448,29 +593,129 @@
   </div>
 
   <script>
-    // boss list
-    const bossTiles = [
-      'Obor','Bryophyta','Giant-Mole','Scurrius','Sarachnis','Prime','Supreme','Rex','Calvarion',
-      'Spindel','KBD','Amoxliatl','Barrows','Jad','Chaos-Elemental','Hueycoatl','Artio',
-      'Crazy-Archaeologist','Chaos-Fanatic','Deranged-Archaeologist','Royal-Titans','Moons','Mad-Angel','Scorpia','Grotesque-Guardians','Zalcano',
-      'Kraken','Kalphite-Queen','Hespori','Skotizo','Inferno','Fortis-Colosseum','Kreearra','General-Graardor',
-      'Kril-Tsutsaroth','Commander-Zilyana','Zulrah','Araxxor','Cerberus','Alchemical-Hydra','Nex','Tombs-of-Amascut',
-      'Vorkath','Phantom-Muspah','Nightmare','Thermonuclear-Smoke-Devil','Phosanis-Nightmare','Maggot-King','Corrupted-Hunllef','Doom-of-Mokhaiotl','Chambers-of-Xeric',
-      'Callisto','Vetion','Venenatis','Hunllef','Abyssal-Sire','Corporeal-Beast','Duke-Sucellus','The-Leviathan',
-      'The-Whisperer','Vardorvis','Yama','Shellbane-Gryphon','Theatre-of-Blood','Brutus'
-    ];
+    // ==========================================================================
+    // OSRS-STYLE XP TABLE
+    // Standard RuneScape leveling formula. XP_TABLE[L] = cumulative xp needed
+    // to REACH level L. Index 0 is unused. Verified: XP_TABLE[99] === 13034431.
+    // ==========================================================================
+    const XP_TABLE = [0, 0, 83, 174, 276, 388, 512, 650, 801, 969, 1154, 1358, 1584, 1833, 2107, 2411, 2746, 3115, 3523, 3973, 4470, 5018, 5624, 6291, 7028, 7842, 8740, 9730, 10824, 12031, 13363, 14833, 16456, 18247, 20224, 22406, 24815, 27473, 30408, 33648, 37224, 41171, 45529, 50339, 55649, 61512, 67983, 75127, 83014, 91721, 101333, 111945, 123660, 136594, 150872, 166636, 184040, 203254, 224466, 247886, 273742, 302288, 333804, 368599, 407015, 449428, 496254, 547953, 605032, 668051, 737627, 814445, 899257, 992895, 1096278, 1210421, 1336443, 1475581, 1629200, 1798808, 1986068, 2192818, 2421087, 2673114, 2951373, 3258594, 3597792, 3972294, 4385776, 4842295, 5346332, 5902831, 6517253, 7195629, 7944614, 8771558, 9684577, 10692629, 11805606, 13034431];
+    const MAX_LEVEL = 99;
+    const MAX_XP = XP_TABLE[MAX_LEVEL]; // 13,034,431
 
-    const storageKey = 'osrsBossTrackerProgress_v2';
-    const percentEl = document.getElementById('percent');
+    // ==========================================================================
+    // Per-boss XP rewards. Every tile's xp value was derived so that the 65
+    // tiles sum to EXACTLY 13,034,431 xp (level 99), split into bands that line
+    // up with the requested tier level-ranges:
+    //   Apprentice (13 tiles): level 1  -> 30
+    //   Jad        (1 tile,  milestone gate): level 30 -> 35
+    //   Adept      (13 tiles): level 35 -> 60
+    //   Expert     (13 tiles): level 60 -> 80
+    //   Remaining budget (level 80 -> 99) is split across Master (13),
+    //   Slayer (8), Passive/Hespori+Skotizo (2), Colosseum (1) and Inferno (1),
+    //   so ALL 65 tiles are required to hit level 99 — matching "all 65 boss
+    //   tiles add up to level 99 once all of them are complete."
+    // ==========================================================================
+    const TILE_XP = {
+      "Obor": 1027, "Bryophyta": 1027, "Giant-Mole": 1027, "Scurrius": 1027, "Sarachnis": 1027,
+      "KBD": 1027, "Amoxliatl": 1027, "Barrows": 1027, "Deranged-Archaeologist": 1027,
+      "Chaos-Fanatic": 1027, "Crazy-Archaeologist": 1027, "Royal-Titans": 1027, "Brutus": 1039,
+      "Jad": 9043,
+      "Prime": 19333, "Supreme": 19333, "Rex": 19333, "Calvarion": 19333, "Spindel": 19333,
+      "Chaos-Elemental": 19333, "Hueycoatl": 19333, "Artio": 19333, "Moons": 19333,
+      "Mad-Angel": 19333, "Scorpia": 19333, "Zalcano": 19333, "Kalphite-Queen": 19340,
+      "Kreearra": 131717, "General-Graardor": 131717, "Kril-Tsutsaroth": 131717,
+      "Commander-Zilyana": 131717, "Zulrah": 131717, "Vorkath": 131717, "Phantom-Muspah": 131717,
+      "Nightmare": 131717, "Callisto": 131717, "Vetion": 131717, "Venenatis": 131717,
+      "Hunllef": 131717, "Corporeal-Beast": 131722,
+      "Duke-Sucellus": 467430, "Phosanis-Nightmare": 467430, "Maggot-King": 467430,
+      "Nex": 467430, "Tombs-of-Amascut": 467430, "Corrupted-Hunllef": 467430,
+      "Doom-of-Mokhaiotl": 467430, "Chambers-of-Xeric": 467430, "The-Leviathan": 467430,
+      "The-Whisperer": 467430, "Vardorvis": 467430, "Yama": 467430, "Theatre-of-Blood": 467441,
+      "Shellbane-Gryphon": 207156, "Grotesque-Guardians": 207156, "Abyssal-Sire": 207156,
+      "Kraken": 207156, "Cerberus": 207156, "Araxxor": 207156, "Thermonuclear-Smoke-Devil": 207156,
+      "Alchemical-Hydra": 207162,
+      "Hespori": 552418, "Skotizo": 552418,
+      "Fortis-Colosseum": 883869,
+      "Inferno": 1325803
+    };
+
+    // Which tier each tile belongs to
+    const TILE_CATEGORY = {
+      "Hespori": "passive", "Skotizo": "passive",
+      "Obor": "apprentice", "Bryophyta": "apprentice", "Giant-Mole": "apprentice",
+      "Scurrius": "apprentice", "Sarachnis": "apprentice", "KBD": "apprentice",
+      "Amoxliatl": "apprentice", "Barrows": "apprentice", "Deranged-Archaeologist": "apprentice",
+      "Chaos-Fanatic": "apprentice", "Crazy-Archaeologist": "apprentice", "Royal-Titans": "apprentice",
+      "Brutus": "apprentice",
+      "Jad": "jad",
+      "Prime": "adept", "Supreme": "adept", "Rex": "adept", "Calvarion": "adept", "Spindel": "adept",
+      "Chaos-Elemental": "adept", "Hueycoatl": "adept", "Artio": "adept", "Moons": "adept",
+      "Mad-Angel": "adept", "Scorpia": "adept", "Zalcano": "adept", "Kalphite-Queen": "adept",
+      "Shellbane-Gryphon": "slayer", "Grotesque-Guardians": "slayer", "Abyssal-Sire": "slayer",
+      "Kraken": "slayer", "Cerberus": "slayer", "Araxxor": "slayer",
+      "Thermonuclear-Smoke-Devil": "slayer", "Alchemical-Hydra": "slayer",
+      "Kreearra": "expert", "General-Graardor": "expert", "Kril-Tsutsaroth": "expert",
+      "Commander-Zilyana": "expert", "Zulrah": "expert", "Vorkath": "expert",
+      "Phantom-Muspah": "expert", "Nightmare": "expert", "Callisto": "expert", "Vetion": "expert",
+      "Venenatis": "expert", "Hunllef": "expert", "Corporeal-Beast": "expert",
+      "Duke-Sucellus": "master", "Phosanis-Nightmare": "master", "Maggot-King": "master",
+      "Nex": "master", "Tombs-of-Amascut": "master", "Corrupted-Hunllef": "master",
+      "Doom-of-Mokhaiotl": "master", "Chambers-of-Xeric": "master", "The-Leviathan": "master",
+      "The-Whisperer": "master", "Vardorvis": "master", "Yama": "master", "Theatre-of-Blood": "master",
+      "Fortis-Colosseum": "colosseum",
+      "Inferno": "inferno"
+    };
+
+    // Board Level required to unlock each tier's tiles
+    const CATEGORY_UNLOCK_LEVEL = {
+      passive: 1, apprentice: 1, jad: 30, adept: 35, slayer: 60,
+      expert: 60, master: 80, colosseum: 85, inferno: 90
+    };
+
+    const CATEGORY_LABEL = {
+      passive: "Passive", apprentice: "Apprentice", jad: "Jad", adept: "Adept",
+      slayer: "Slayer", expert: "Expert", master: "Master",
+      colosseum: "Fortis Colosseum", inferno: "The Inferno"
+    };
+
+    const bossTiles = Object.keys(TILE_CATEGORY);
+
+    const storageKey = 'osrsBossTrackerProgress_v3';
+
+    // Both level-number displays are updated together — query them live each
+    // time rather than caching a single reference.
+    const levelNumberEls = document.querySelectorAll('.level-number');
+    const xpBarFill = document.getElementById('xp-bar-fill');
+    const dropAnchor = document.getElementById('level-slot-1'); // xp-drop floats near slot 1
+    const ttTotalXp = document.getElementById('tt-total-xp');
+    const ttNextLevel = document.getElementById('tt-next-level');
     const imgContainer = document.getElementById('image-container');
     const toast = document.getElementById('notification-bar');
 
-    // helper: show small toast
-    function showNotification(msg, ms = 2200){
-      toast.textContent = msg;
-      toast.classList.add('show');
-      clearTimeout(toast._hideTimeout);
-      toast._hideTimeout = setTimeout(()=> toast.classList.remove('show'), ms);
+    // total xp is tracked in a plain variable now (not a DOM dataset) since
+    // there's more than one number element on screen.
+    let lastXp = 0;
+
+    function fmt(n){ return n.toLocaleString('en-US'); }
+
+    // helper: show small toast (queue-friendly via optional delay)
+    function showNotification(msg, ms = 2200, delay = 0){
+      const fire = () => {
+        toast.textContent = msg;
+        toast.classList.add('show');
+        clearTimeout(toast._hideTimeout);
+        toast._hideTimeout = setTimeout(()=> toast.classList.remove('show'), ms);
+      };
+      if(delay > 0) setTimeout(fire, delay); else fire();
+    }
+
+    // Given total xp, return the current level (1-99)
+    function levelForXp(xp){
+      let lvl = 1;
+      for(let L = MAX_LEVEL; L >= 1; L--){
+        if(xp >= XP_TABLE[L]){ lvl = L; break; }
+      }
+      return lvl;
     }
 
     // toggle a tile's completion
@@ -478,24 +723,52 @@
       const tile = document.getElementById(bossId);
       if(!tile) return;
 
-      tile.classList.toggle('completed');
+      const willComplete = !tile.classList.contains('completed');
 
+      if(willComplete && tile.classList.contains('locked')){
+        const cat = TILE_CATEGORY[bossId];
+        const req = CATEGORY_UNLOCK_LEVEL[cat];
+        showNotification(`🔒 ${CATEGORY_LABEL[cat]} is locked — reach Level ${req} to unlock it.`, 2400);
+        return;
+      }
+
+      tile.classList.toggle('completed');
       const wasComplete = tile.classList.contains('completed');
       const displayName = bossId.replace(/-/g,' ');
+      const tileXpVal = TILE_XP[bossId] || 0;
 
-      const msg = wasComplete ? `${displayName} marked as COMPLETE!` : `${displayName} marked as INCOMPLETE.`;
-      showNotification(msg, 1600);
+      saveProgress();
+      const result = applyXp(computeTotalXp());
 
-      // play sound when tile becomes completed
+      const msg = wasComplete
+        ? `${displayName} marked as COMPLETE!`
+        : `${displayName} marked as INCOMPLETE.`;
+      showNotification(msg, 1800);
+
       if (wasComplete) {
         const sound = document.getElementById("completion-sound");
         sound.currentTime = 0;
         sound.play().catch(()=>{});
       }
 
-      saveProgress();
-      const {percent, delta} = updatePercentAndReturnDelta();
-      animatePercentChange(percent, delta);
+      animateXpChange(result);
+
+      if(result.levelUp){
+        showNotification(`⭐ Congratulations, You Just Advanced!\nLevel ${result.level}!`, 2200, 1900);
+        checkNewlyUnlockedTiers(result.prevLevel, result.level, 4100);
+      }
+    }
+
+    // announce any tiers that just crossed their unlock threshold
+    function checkNewlyUnlockedTiers(prevLevel, newLevel, startDelay){
+      let delay = startDelay || 0;
+      Object.keys(CATEGORY_UNLOCK_LEVEL).forEach(cat=>{
+        const req = CATEGORY_UNLOCK_LEVEL[cat];
+        if(req > prevLevel && req <= newLevel && req > 1){
+          showNotification(`🔓 ${CATEGORY_LABEL[cat]} unlocked!`, 2400, delay);
+          delay += 2500;
+        }
+      });
     }
 
     // save progress to localStorage
@@ -511,82 +784,108 @@
     // load progress and set initial UI
     function loadProgress(){
       const raw = localStorage.getItem(storageKey);
-      if(!raw) return updatePercentAndReturnDelta(); // compute initial
-      try {
-        const progress = JSON.parse(raw);
-        bossTiles.forEach(id=>{
-          const tile = document.getElementById(id);
-          if(tile && progress[id]) tile.classList.add('completed');
-          else if(tile) tile.classList.remove('completed');
-        });
-      } catch(e){
-        console.warn('Failed to parse progress', e);
+      if(raw){
+        try {
+          const progress = JSON.parse(raw);
+          bossTiles.forEach(id=>{
+            const tile = document.getElementById(id);
+            if(tile && progress[id]) tile.classList.add('completed');
+            else if(tile) tile.classList.remove('completed');
+          });
+        } catch(e){
+          console.warn('Failed to parse progress', e);
+        }
       }
-      return updatePercentAndReturnDelta();
+      return applyXp(computeTotalXp());
     }
 
-    // calculate percent and apply tier-complete visuals if needed
-    function updatePercentAndReturnDelta(){
-      const total = bossTiles.length;
-      let completed = 0;
+    // sum xp of all completed tiles
+    function computeTotalXp(){
+      let xp = 0;
       bossTiles.forEach(id=>{
         const tile = document.getElementById(id);
-        if(tile && tile.classList.contains('completed')) completed++;
+        if(tile && tile.classList.contains('completed')) xp += (TILE_XP[id] || 0);
       });
-      const percent = Math.round((completed / total) * 100);
-      return applyPercent(percent);
+      return xp;
     }
 
-    // apply percent to DOM and return object {percent, delta} where delta is change from previous percent
-    function applyPercent(newPercent){
-      const oldText = parseInt(percentEl.dataset.lastPercent || '0', 10);
-      const delta = newPercent - oldText;
+    // lock/unlock tiles based on current Board Level
+    function updateLockedTiles(currentLevel){
+      bossTiles.forEach(id=>{
+        const tile = document.getElementById(id);
+        if(!tile) return;
+        const cat = TILE_CATEGORY[id];
+        const req = CATEGORY_UNLOCK_LEVEL[cat];
 
-      // set main text
-      percentEl.textContent = newPercent + '%';
-      // add pop
-      percentEl.classList.remove('pop');
-      // force reflow to restart animation
-      void percentEl.offsetWidth;
-      percentEl.classList.add('pop');
+        if(tile.classList.contains('completed')){
+          tile.classList.remove('locked');
+          tile.removeAttribute('title');
+          return;
+        }
 
-      // update stored last percent
-      percentEl.dataset.lastPercent = newPercent;
+        if(currentLevel < req){
+          tile.classList.add('locked');
+          tile.title = `🔒 ${CATEGORY_LABEL[cat]} — unlocks at Level ${req}`;
+        } else {
+          tile.classList.remove('locked');
+          tile.title = '';
+          tile.removeAttribute('title');
+        }
+      });
+    }
 
-      // tier complete / glow
-      if(newPercent === 100){
+    // apply a new total-xp value to the DOM: both level numbers, xp bar,
+    // tooltip, tier-complete glow, and tile lock states. Returns info about
+    // the change.
+    function applyXp(newXp){
+      const prevXp = lastXp;
+      const prevLevel = levelForXp(prevXp);
+      const newLevel = levelForXp(newXp);
+      const xpDelta = newXp - prevXp;
+
+      levelNumberEls.forEach(el=>{
+        el.textContent = newLevel;
+        el.classList.remove('pop');
+        void el.offsetWidth; // restart animation
+        el.classList.add('pop');
+      });
+      lastXp = newXp;
+
+      // xp progress bar within current level
+      const curLevelXp = XP_TABLE[newLevel];
+      const nextLevelXp = newLevel < MAX_LEVEL ? XP_TABLE[newLevel + 1] : curLevelXp;
+      const span = nextLevelXp - curLevelXp;
+      const progressed = span > 0 ? (newXp - curLevelXp) / span : 1;
+      xpBarFill.style.width = (Math.min(1, Math.max(0, progressed)) * 100) + '%';
+
+      // tooltip content
+      ttTotalXp.textContent = `Total XP: ${fmt(newXp)}`;
+      ttNextLevel.textContent = newLevel < MAX_LEVEL
+        ? `XP to next level: ${fmt(nextLevelXp - newXp)}`
+        : `Maxed out — Level 99!`;
+
+      // tier-complete glow only when truly maxed (all 65 tiles done)
+      if(newXp >= MAX_XP){
         imgContainer.classList.add('tier-complete');
-        showNotification('Trial of Tiers Completed!', 2600);
       } else {
         imgContainer.classList.remove('tier-complete');
       }
 
-      return {percent:newPercent, delta};
+      updateLockedTiles(newLevel);
+
+      return { xp: newXp, level: newLevel, prevLevel, xpDelta, levelUp: newLevel > prevLevel };
     }
 
-    // xp-drop animation: create floating element and show change
-    function animatePercentChange(percent, delta){
+    // xp-drop animation: floating "+N xp" text near the level widget
+    function animateXpChange(result){
       const xp = document.createElement('div');
       xp.className = 'xp-drop';
-      if(delta > 0) xp.textContent = `+${delta}%`;
-      else if(delta < 0) xp.textContent = `${delta}%`;
-      else xp.textContent = `${percent}%`;
+      if(result.xpDelta > 0) xp.textContent = `+${fmt(result.xpDelta)} xp`;
+      else if(result.xpDelta < 0) xp.textContent = `${fmt(result.xpDelta)} xp`;
+      else return;
 
-      const wrap = document.getElementById('percent-wrap');
-      wrap.appendChild(xp);
+      dropAnchor.appendChild(xp);
       xp.addEventListener('animationend', ()=> xp.remove());
-
-      // extra sparkle/pop for 100%
-      if(percent === 100){
-        const burst = document.createElement('div');
-        burst.className = 'xp-drop';
-        burst.style.fontSize = '2.8cqw';
-        burst.style.color = '#fff1b3';
-        burst.style.textShadow = '0 0 12px rgba(255,220,90,0.95)';
-        burst.textContent = '100%';
-        wrap.appendChild(burst);
-        burst.addEventListener('animationend', ()=> burst.remove());
-      }
     }
 
     // reset helper
@@ -597,21 +896,18 @@
         if(tile) tile.classList.remove('completed');
       });
       saveProgress();
-      applyPercent(0);
+      lastXp = 0;
+      applyXp(0);
       showNotification('Progress reset.');
     }
 
     // initialize on load
     (function init(){
-      if(!percentEl.dataset.lastPercent) percentEl.dataset.lastPercent = '0';
-
-      const { percent } = loadProgress() || {percent:0};
-      percentEl.classList.add('pop');
-
-      setTimeout(()=> {
-        const p = parseInt(percentEl.textContent.replace('%',''),10) || 0;
-        if(p === 100) imgContainer.classList.add('tier-complete');
-      }, 240);
+      const startXp = computeTotalXp();
+      // seed lastXp so the very first applyXp call doesn't fire a delta popup
+      lastXp = startXp;
+      loadProgress();
+      levelNumberEls.forEach(el => el.classList.add('pop'));
 
       // keyboard support: allow toggling selected tile with Enter/Space if focused
       document.querySelectorAll('.boss-tile').forEach(el=>{
