@@ -80,6 +80,42 @@
       display: block;
     }
 
+    /* ===== Mute button — sits in the top-right corner of the image,
+       scales with the container like everything else. Toggled via JS,
+       state persisted in localStorage. ===== */
+    #mute-btn{
+      position:absolute;
+      top:43.4%;
+      right:35.9%;
+      width:3cqw;
+      height:3xqw;
+      min-width:26px;
+      min-height:26px;
+      border-radius:50%;
+      border:1px solid rgba(255,255,255,0.25);
+      background:rgba(0,0,0,0.5);
+      color:#fff;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:2cqw;
+      cursor:pointer;
+      z-index:2200;
+      pointer-events:auto;
+      transition: background 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+      box-shadow:0 4px 12px rgba(0,0,0,0.5);
+    }
+    #mute-btn:hover{
+      background:rgba(0,0,0,0.7);
+      box-shadow:0 0 10px rgba(255,255,255,0.25);
+    }
+    #mute-btn:active{
+      transform: scale(0.92);
+    }
+    #mute-btn.muted{
+      color:#ff8080;
+    }
+
     /* ============ LEVEL / XP WIDGET (replaces the old percent display) ============
        #level-wrap is just a full-bleed, non-interactive positioning layer.
        Inside it:
@@ -495,6 +531,10 @@
   <div id="image-container" role="application" aria-label="OSRS Trial of Tiers tracker">
     <div id="notification-bar" aria-live="polite"></div>
 
+    <!-- Mute button: toggles all tracker sound effects on/off. State is
+         saved in localStorage so it persists across reloads. -->
+    <button id="mute-btn" type="button" aria-label="Mute sound effects" title="Mute sound effects" onclick="toggleMute()">🔊</button>
+
     <!-- Board Level widget (OSRS skill-orb style). #level-slot-1 (icon + first
          number + hover tooltip) and #level-slot-2 (duplicate number only) can
          each be repositioned independently via their CSS left/top. #xp-bar-wrap
@@ -681,6 +721,7 @@
     const bossTiles = Object.keys(TILE_CATEGORY);
 
     const storageKey = 'osrsBossTrackerProgress_v3';
+    const muteStorageKey = 'osrsBossTrackerMuted_v1';
 
     // Both level-number displays are updated together — query them live each
     // time rather than caching a single reference.
@@ -691,10 +732,12 @@
     const ttNextLevel = document.getElementById('tt-next-level');
     const imgContainer = document.getElementById('image-container');
     const toast = document.getElementById('notification-bar');
+    const muteBtn = document.getElementById('mute-btn');
 
     // total xp is tracked in a plain variable now (not a DOM dataset) since
     // there's more than one number element on screen.
     let lastXp = 0;
+    let isMuted = false;
 
     function fmt(n){ return n.toLocaleString('en-US'); }
 
@@ -707,6 +750,31 @@
         toast._hideTimeout = setTimeout(()=> toast.classList.remove('show'), ms);
       };
       if(delay > 0) setTimeout(fire, delay); else fire();
+    }
+
+    // ===== Mute control =====
+    function applyMuteState(){
+      const sounds = [document.getElementById('completion-sound'), document.getElementById('levelup-sound')];
+      sounds.forEach(s => { if(s) s.muted = isMuted; });
+      muteBtn.textContent = isMuted ? '🔇' : '🔊';
+      muteBtn.classList.toggle('muted', isMuted);
+      muteBtn.setAttribute('aria-label', isMuted ? 'Unmute sound effects' : 'Mute sound effects');
+      muteBtn.title = isMuted ? 'Unmute sound effects' : 'Mute sound effects';
+    }
+
+    function toggleMute(){
+      isMuted = !isMuted;
+      localStorage.setItem(muteStorageKey, JSON.stringify(isMuted));
+      applyMuteState();
+      showNotification(isMuted ? '🔇 Sound muted' : '🔊 Sound unmuted', 1400);
+    }
+
+    function loadMuteState(){
+      const raw = localStorage.getItem(muteStorageKey);
+      if(raw !== null){
+        try { isMuted = JSON.parse(raw); } catch(e){ isMuted = false; }
+      }
+      applyMuteState();
     }
 
     // Given total xp, return the current level (1-99)
@@ -748,6 +816,7 @@
       if (wasComplete) {
         const sound = document.getElementById("completion-sound");
         sound.currentTime = 0;
+        sound.muted = isMuted;
         sound.play().catch(()=>{});
       }
 
@@ -903,6 +972,8 @@
 
     // initialize on load
     (function init(){
+      loadMuteState();
+
       const startXp = computeTotalXp();
       // seed lastXp so the very first applyXp call doesn't fire a delta popup
       lastXp = startXp;
