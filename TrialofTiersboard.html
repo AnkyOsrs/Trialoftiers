@@ -1,993 +1,1337 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>OSRS Trial of Tiers Tracker</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Trial of Tiers — OSRS Boss Tracker</title>
 
-  <!-- Use the uploaded TTF (put runescape_bold.ttf in same folder as this HTML) -->
-  <style>
-    @font-face {
-      font-family: "RunescapeOS";
-      src: url("runescape_bold.ttf") format("truetype");
-      font-weight: normal;
-      font-style: normal;
-      font-display: swap;
-    }
+<!--
+  ============================================================================
+  TRIAL OF TIERS  —  drop this file in the SAME FOLDER as:
+      OSRS_Bossing_Canvas_Updating.png   (the board background)
+      runescape_bold.ttf                 (the font)
+      UniqueDrop.mp3                     (the completion sound)
 
-    :root{
-      --image-w: 1280;   /* native pixel width of the source PNG */
-      --image-h: 720;    /* native pixel height of the source PNG */
-    }
+  Everything you might want to tweak lives in the CONFIG block at the top of
+  the <script> tag near the bottom. Tile positions are given in PIXELS of the
+  1280 x 720 board image, so you can read coordinates straight off the PNG in
+  any image editor — no percentages to convert, no magic scale factors.
+  ============================================================================
+-->
 
-    body{
-      margin:0;
-      min-height:100vh;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      background:#222;
-      font-family: "RunescapeOS", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-      padding:20px;
-      box-sizing:border-box;
-    }
+<style>
+@font-face{
+  font-family:"RunescapeOS";
+  src:url("runescape_bold.ttf") format("truetype");
+  font-weight:normal; font-style:normal; font-display:swap;
+}
 
-    /* Notification bar (small toast) — lives INSIDE #image-container,
-       so left/top/bottom are percentages of the image itself and it scales
-       and tracks the image exactly the way #level-wrap does, at any
-       window size or resolution. */
-    #notification-bar{
-      position:absolute;
-      bottom:43.7%;
-      left:75.4%;
-      transform:translateX(-50%);
-      color:#0000ff;
-      text-shadow:
-        0 1px 0 rgba(0,0,0,0),
-        0 6px 20px rgba(0,0,0,0),
-        0 0 6px rgba(0,0,0,0);
-      padding: 0.2cqw 0.3cqw;
-      border-radius:8px;
-      z-index:2000;
-      opacity:0;
-      pointer-events:none;
-      transition:opacity .28s ease;
-      font-size:1.7cqw;
-      font-family: "RunescapeOS", serif;
-      white-space:pre-line;
-      text-align:center;
-      line-height:1.35;
-    }
+:root{
+  --board-w:1280;
+  --board-h:720;
+  --chrome:52px;          /* height reserved for the toolbar under the board */
+  --ink:#f4e9c8;
+  --gold:#ffd34d;
+  --green:#5cff8f;
+}
 
-    #notification-bar.show{ opacity:1; pointer-events:auto; }
+*{ box-sizing:border-box; }
 
-    /* Main image container — fluid, scales between monitor sizes,
-       aspect-ratio keeps it locked to the source image proportions
-       so percentage-based tile coordinates always line up. */
-    #image-container {
-      position:relative;
-      width: min(92vw, 92vh * (1280/720));  /* fills most of the screen on any monitor, keeping the 1280:720 shape */
-      max-width: 2400px;   /* cap upscaling on very large/4K monitors so it doesn't get too soft */
-      aspect-ratio: 1280 / 720;
-      container-type: inline-size;  /* lets children size themselves off THIS element's width (cqw), not the viewport, so they scale with the image itself even when max-width/aspect-ratio caps it */
-      container-name: tracker;
-      background-image: url('OSRS_Bossing_Canvas_Updating.png');
-      background-size: 100% 100%;
-      background-repeat: no-repeat;
-      background-position: center;
-      box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
-      margin: 0 auto;
-      display: block;
-    }
+html,body{ height:100%; }
 
-    /* ===== Mute button — sits in the top-right corner of the image,
-       scales with the container like everything else. Toggled via JS,
-       state persisted in localStorage. ===== */
-    #mute-btn{
-      position:absolute;
-      top:43.4%;
-      right:35.9%;
-      width:3cqw;
-      height:3xqw;
-      min-width:26px;
-      min-height:26px;
-      border-radius:50%;
-      border:1px solid rgba(255,255,255,0.25);
-      background:rgba(0,0,0,0.5);
-      color:#fff;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:2cqw;
-      cursor:pointer;
-      z-index:2200;
-      pointer-events:auto;
-      transition: background 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
-      box-shadow:0 4px 12px rgba(0,0,0,0.5);
-    }
-    #mute-btn:hover{
-      background:rgba(0,0,0,0.7);
-      box-shadow:0 0 10px rgba(255,255,255,0.25);
-    }
-    #mute-btn:active{
-      transform: scale(0.92);
-    }
-    #mute-btn.muted{
-      color:#ff8080;
-    }
+body{
+  margin:0;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  padding:14px;
+  background:
+    radial-gradient(1200px 700px at 50% 30%, #2c2a26 0%, #171614 70%, #0e0d0c 100%);
+  font-family:"RunescapeOS", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  color:var(--ink);
+  overflow:hidden;
+}
 
-    /* ============ LEVEL / XP WIDGET (replaces the old percent display) ============
-       #level-wrap is just a full-bleed, non-interactive positioning layer.
-       Inside it:
-         - .level-slot elements each hold ONE copy of the level number (and,
-           for slot 1 only, the little sword icon + hover tooltip). There are
-           two slots (#level-slot-1, #level-slot-2) showing the exact same
-           number, kept in sync by JS — move each slot's left/top independently
-           to place the two numbers anywhere on the board.
-         - #xp-bar-wrap holds the xp progress bar and has its OWN left/top,
-           completely independent of both number slots.
-       Edit the left/top (and transform, if you want a different anchor point)
-       on #level-slot-1, #level-slot-2, and #xp-bar-wrap below to reposition
-       each piece separately. */
-    #level-wrap{
-      position:absolute;
-      inset:0;
-      pointer-events:none;
-      z-index:1500;
-    }
+/* ==========================================================================
+   BOARD
+   Scales to fill the screen on any monitor while staying locked to the
+   1280:720 shape, so every pixel coordinate below lands where it should.
+   ========================================================================== */
+#image-container{
+  position:relative;
+  width:min(96vw, (96vh - var(--chrome)) * (1280/720));
+  max-width:2400px;
+  aspect-ratio:1280 / 720;
+  container-type:inline-size;
+  container-name:tracker;
+  background-image:url('OSRS_Bossing_Canvas_Updating.png');
+  background-size:100% 100%;
+  background-repeat:no-repeat;
+  background-position:center;
+  box-shadow:0 0 30px rgba(0,0,0,.85), 0 0 90px rgba(0,0,0,.5);
+  border-radius:4px;
+  user-select:none;
+  flex:0 0 auto;
+}
 
-    .level-slot{
-      position:absolute;
-      left:21.4%;
-      top:47.4%;
-      transform:translate(-50%, -50%);
-      display:flex;
-      align-items:center;
-      gap:0.7cqw;
-      pointer-events:auto;
-      cursor:default;
-    }
+#image-container.no-art{
+  background-image:none;
+  background-color:#2b2b28;
+  outline:2px dashed rgba(255,255,255,.18);
+}
 
-    /* Slot 2 is the duplicate. Same left/top as slot 1 by default (so they
-       currently sit on top of one another) — change these to move the
-       second number anywhere else on the board. */
-    #level-slot-2{
-      left:27.3%;
-      top:53.8%;
-    }
+/* ==========================================================================
+   BOSS TILES
+   Position/size are written by JS from the TILES table (board pixels).
+   ========================================================================== */
+.boss-tile{
+  position:absolute;
+  cursor:pointer;
+  background-color:transparent;
+  overflow:hidden;
+  z-index:1200;
+  transition:box-shadow .18s ease, background-color .15s ease,
+             backdrop-filter .2s ease, transform .1s ease;
+  /* OSRS slot silhouette — keeps the glow inside the notched frame */
+  clip-path:polygon(9.5% 0%, 91% 0%, 91.3% 5%, 95% 5.1%, 95.3% 9%, 95% 9%,
+                    100% 9.4%, 100% 91%, 95% 91%, 95% 95%, 91% 95%, 91% 100%,
+                    9% 100%, 9% 95%, 6.5% 95%, 6.5% 91%, 0.5% 91%, 0.5% 9.5%,
+                    6.5% 9.5%, 6.5% 6%, 9.5% 6%);
+}
+.boss-tile:focus-visible{
+  outline:none;
+  box-shadow:inset 0 0 0 2px rgba(255,235,150,.9), 0 0 14px rgba(255,220,120,.5);
+}
 
-    .level-icon{
-      width:4.4cqw;
-      height:4.4cqw;
-      flex:0 0 auto;
-      filter: drop-shadow(0 2px 3px rgba(0,0,0,0.8));
-    }
-    .level-icon svg{ width:271%; height:166%; display:block; }
+/* ---- completed ----
+   A soft green light glows from the middle of the slot and feathers out to the
+   edges, so the whole tile reads as lit rather than just its frame. The
+   ::after gradient is what fills the tile; mix-blend-mode: screen means it
+   brightens the artwork's own colours instead of masking them. */
+.boss-tile.completed{
+  box-shadow:
+    inset 0 0 20px 8px rgba(90,255,130,.16),
+    inset 0 0 42px 16px rgba(60,220,110,.08),
+    0 0 10px rgba(90,255,130,.16);
+}
+.boss-tile.completed::after{
+  content:"";
+  position:absolute; inset:0;
+  background:radial-gradient(circle at 50% 50%,
+    rgba(150,255,170,.18) 0%,
+    rgba(110,255,150,.10) 30%,
+    rgba(80,255,120,.04) 55%,
+    rgba(80,255,120,0) 82%);
+  mix-blend-mode:screen;
+  pointer-events:none;
+}
 
-    .level-number {
-      font-family: "RunescapeOS", serif;
-      font-size: 4cqw;
-      line-height:1;
-      font-weight:700;
-      color:#ffff00;
-      text-shadow:
-        4px 2px 0 rgb(0 0 0 / 63%),
-        0 6px 20px #ffff0000,
-        0 0 6px rgba(0 0 0);
-      display:inline-block;
-      border-radius:8px;
-      transform-origin:center;
-      transition: transform 220ms cubic-bezier(.2,.9,.2,1), color 200ms;
-    }
+/* ---- hover states ---- */
+.boss-tile:hover:not(.completed):not(.locked){
+  box-shadow:0 0 12px rgba(200,200,200,.28);
+  background-color:rgba(200,200,200,.09);
+}
+.boss-tile.completed:hover{
+  box-shadow:
+    inset 0 0 26px 10px rgba(110,255,150,.24),
+    inset 0 0 50px 18px rgba(70,230,120,.12),
+    0 0 13px rgba(110,255,150,.24);
+}
+.boss-tile.completed:hover::after{
+  background:radial-gradient(circle at 50% 50%,
+    rgba(170,255,190,.24) 0%,
+    rgba(120,255,160,.13) 30%,
+    rgba(90,255,130,.05) 55%,
+    rgba(90,255,130,0) 82%);
+}
 
-    /* xp bar — positioned completely independently of the level number slots */
-    #xp-bar-wrap{
-      position:absolute;
-      left:22.3%;
-      top:56.8%;
-      transform:translate(-50%, -50%);
-      width:25.5%;
-      pointer-events:none;
-    }
-    #xp-bar-track{
-      width:55.2%;
-      height:0.4cqw;
-      min-height:5px;
-      margin:0 auto;
-      background:rgba(0,0,0,0.55);
-      border:1px solid rgba(255,255,255,0.18);
-      border-radius:5px;
-      overflow:hidden;
-      box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
-    }
-    #xp-bar-fill{
-      height:100%;
-      width:0%;
-      background:linear-gradient(90deg,#0ecb46,#4dffa0);
-      box-shadow: 0 0 6px rgba(80,255,140,0.7);
-      transition: width 320ms ease;
-    }
+/* ---- locked ----
+   A tile is a transparent div sitting ON TOP of the board image, so `filter`
+   can only reach the tile's own padlock — it never touches the artwork behind.
+   `backdrop-filter` is what actually makes a locked slot recede. */
+.boss-tile.locked{
+  cursor:not-allowed;
+  backdrop-filter:grayscale(.85) brightness(.56);
+  -webkit-backdrop-filter:grayscale(.85) brightness(.56);
+}
+.boss-tile.locked:hover{
+  backdrop-filter:grayscale(.7) brightness(.68);
+  -webkit-backdrop-filter:grayscale(.7) brightness(.68);
+  box-shadow:none;
+  background-color:transparent;
+}
+.boss-tile.locked::before{
+  content:"\1F512";
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  font-size:2.7cqw;
+  filter:grayscale(1) opacity(.72);
+  text-shadow:0 2px 5px rgba(0,0,0,.95);
+  pointer-events:none;
+  z-index:5;
+}
 
-    /* Tooltip: total xp + xp to next level. Shown on hover of slot 1 (the
-       icon + number pairing). */
-    #level-tooltip{
-      position:absolute;
-      bottom:112%;
-      left:50%;
-      transform:translateX(-50%);
-      background:rgba(8,12,8,0.94);
-      border:1px solid rgba(120,255,150,0.4);
-      border-radius:7px;
-      padding:0.7cqw 1.1cqw;
-      font-size:1.05cqw;
-      color:#daffe4;
-      white-space:nowrap;
-      text-align:center;
-      line-height:1.6;
-      opacity:0;
-      pointer-events:none;
-      transition:opacity 150ms ease;
-      z-index:2100;
-      box-shadow:0 6px 18px rgba(0,0,0,0.6);
-    }
-    #level-tooltip .tt-title{
-      color:#fff1b3;
-      font-size:1.1cqw;
-      display:block;
-      margin-bottom:0.15cqw;
-    }
-    #level-slot-1:hover #level-tooltip{ opacity:1; }
+/* ---- sibling highlight while a tier header is hovered ---- */
+.boss-tile.tier-hi:not(.completed){
+  box-shadow:inset 0 0 0 2px rgba(255,215,110,.55), 0 0 12px rgba(255,200,90,.3);
+  background-color:rgba(255,210,110,.08);
+}
+.boss-tile.tier-hi.completed{
+  box-shadow:
+    inset 0 0 0 2px rgba(255,215,110,.5),
+    inset 0 0 26px 10px rgba(110,255,150,.2),
+    0 0 12px rgba(255,200,90,.3);
+}
 
-    /* Pop animation for the level number(s) when they change */
-    .pop {
-      animation: pop-scale 420ms cubic-bezier(.2,.9,.2,1);
-    }
-    @keyframes pop-scale {
-      0% { transform: scale(0.6); filter:brightness(1); }
-      40% { transform: scale(1.18); filter:brightness(1.15); }
-      100% { transform: scale(1); }
-    }
+/* click feedback */
+.boss-tile:not(.locked):active{ transform:scale(.965); }
 
-    /* XP-drop style floating element */
-    .xp-drop {
-      position:absolute;
-      left:50%;
-      top:8%;
-      transform:translate(-50%, -10px);
-      font-family:"RunescapeOS", serif;
-      font-size: 1.7cqw;
-      font-weight:700;
-      pointer-events:none;
-      text-shadow: 0 1px 0 rgba(0,0,0,0.95);
-      will-change: transform, opacity;
-      z-index:1600;
-      color:#a6ff7a; /* XP color-ish */
-      animation: xp-float 1300ms ease-out forwards;
-      white-space:nowrap;
-    }
+/* just-completed flourish */
+@keyframes tile-flash{
+  0%   { box-shadow:inset 0 0 0 3px rgba(190,255,210,.9), 0 0 30px rgba(120,255,160,.8); }
+  100% { box-shadow:inset 0 0 0 3px rgba(190,255,210,0),  0 0 0 rgba(120,255,160,0); }
+}
+.boss-tile.flash{ animation:tile-flash 620ms ease-out; }
 
-    @keyframes xp-float {
-      0% { opacity: 1; transform: translate(-50%, 0) scale(0.95); }
-      20% { transform: translate(-50%, -18px) scale(1.05); }
-      60% { opacity: 1; transform: translate(-50%, -52px) scale(1.02); }
-      100% { opacity: 0; transform: translate(-50%, -88px) scale(1.0); }
-    }
+/* ==========================================================================
+   INVISIBLE HOVER HOTSPOTS  (tier header plaques, slayer banner, level plaque)
+   ========================================================================== */
+.hotspot{
+  position:absolute;
+  z-index:1300;
+  cursor:help;
+  border-radius:6px;
+  transition:box-shadow .18s ease, background-color .18s ease;
+}
+.hotspot:hover{
+  background-color:rgba(255,220,130,.07);
+  box-shadow:inset 0 0 0 1px rgba(255,220,130,.35), 0 0 16px rgba(255,200,90,.18);
+}
+.hotspot:focus-visible{
+  outline:none;
+  background-color:rgba(255,220,130,.1);
+  box-shadow:inset 0 0 0 2px rgba(255,235,150,.8);
+}
 
-    /* Tier Completed glow overlay */
-    #tier-badge {
-      position:absolute;
-      left:75.5%;
-      bottom:46.5%;
-      transform:translateX(-50%);
-      font-family:"RunescapeOS", serif;
-      padding:10px 18px;
-      border-radius:10px;
-      font-size: 2.9cqw;
-      letter-spacing:0.6px;
-      display:none;
-      z-index:1700;
-      pointer-events:none;
-      color:#10ff5b;
-      text-shadow:
-        0 1px 0 rgb(0 0 0), 0 0 16px #222;
-      background:linear-gradient(180deg, rgb(255 240 180 / 0%), rgb(0 0 0 / 0%));
-      white-space:nowrap;
-    }
+/* ==========================================================================
+   TOOLTIPS  (one shared element for tiles, one for tier plaques)
+   ========================================================================== */
+.tip{
+  position:absolute;
+  z-index:2200;
+  pointer-events:none;
+  opacity:0;
+  transform:translateY(4px);
+  transition:opacity .13s ease, transform .13s ease;
+  background:linear-gradient(180deg,#181510,#0c0a07);
+  border:1px solid rgba(255,205,105,.45);
+  border-radius:8px;
+  box-shadow:0 12px 30px rgba(0,0,0,.85), inset 0 0 0 1px rgba(0,0,0,.6);
+  padding:.75cqw 1cqw;
+  line-height:1.5;
+  white-space:normal;
+  max-width:34cqw;
+  color:var(--ink);
+  font-size:1.05cqw;
+}
+.tip.show{ opacity:1; transform:translateY(0); }
 
-    /* glow effect applied to container when level 99 is reached */
-    #image-container.tier-complete::after {
-      content: "";
-      position: absolute;
-      inset: -14px;
-      border-radius: 10px;
-      z-index: 1400;
-      pointer-events: none;
-      box-shadow:
-        0 0 18px rgba(255,220,80,0.85),
-        0 0 60px rgba(255,160,50,0.55),
-        inset 0 0 30px rgba(255,240,200,0.08);
-      animation: glow-pulse 1200ms ease-in-out infinite alternate;
-    }
+.tip .t-name{
+  display:block;
+  font-size:1.5cqw;
+  color:var(--gold);
+  letter-spacing:.02em;
+  margin-bottom:.15cqw;
+}
+.tip .t-sub{
+  display:block;
+  font-size:1cqw;
+  color:#b9b09a;
+  margin-bottom:.45cqw;
+}
+.tip .t-rule{ display:block; font-size:1.05cqw; color:#dfe9d8; }
+.tip .t-rule b{ color:var(--green); font-weight:normal; }
+.tip .t-xp{ color:#a6ff7a; }
+.tip .t-hint{
+  display:block;
+  margin-top:.45cqw;
+  padding-top:.4cqw;
+  border-top:1px solid rgba(255,255,255,.12);
+  font-size:.95cqw;
+  color:#8d8571;
+}
+.tip .t-hint.done{ color:#7fd39a; }
+.tip .t-hint.lock{ color:#e8a05a; }
 
-    @keyframes glow-pulse {
-      from { filter: drop-shadow(0 0 10px rgba(255,220,80,0.7)); transform: none; }
-      to { filter: drop-shadow(0 0 26px rgba(255,160,50,0.9)); transform: translateY(-2px); }
-    }
+/* --- tier tooltip extras --- */
+#tier-tip{ width:26cqw; max-width:26cqw; }
+#tier-tip .t-head{
+  display:flex; align-items:baseline; justify-content:space-between; gap:1cqw;
+  border-bottom:1px solid rgba(255,205,105,.25);
+  padding-bottom:.4cqw; margin-bottom:.55cqw;
+}
+#tier-tip .t-head .t-name{ margin:0; }
+#tier-tip .t-unlock{ font-size:.95cqw; color:#b9b09a; white-space:nowrap; }
+#tier-tip .t-lead{ font-size:1cqw; color:#cfc7b2; margin-bottom:.3cqw; display:block; }
+#tier-tip .t-way{
+  display:flex; align-items:flex-start; gap:.5cqw;
+  font-size:1.05cqw; color:#e6f2e0; margin:.15cqw 0;
+}
+#tier-tip .t-way::before{ content:"•"; color:var(--green); flex:0 0 auto; }
+#tier-tip .t-way b{ color:var(--green); font-weight:normal; }
+#tier-tip .t-or{
+  display:flex; align-items:center; gap:.5cqw;
+  font-size:.9cqw; color:#a89b7c; letter-spacing:.14em;
+  margin:.28cqw 0 .28cqw 1.5cqw;
+}
+#tier-tip .t-or::after{
+  content:""; flex:1; height:1px; background:rgba(255,255,255,.1);
+}
+#tier-tip .t-ways{ margin-bottom:.55cqw; }
+#tier-tip .t-foot{
+  display:flex; justify-content:space-between; gap:1cqw;
+  font-size:1cqw; color:#cfc7b2;
+  border-top:1px solid rgba(255,255,255,.12);
+  padding-top:.45cqw; margin-top:.15cqw;
+}
+#tier-tip .t-foot b{ color:var(--gold); font-weight:normal; }
+#tier-mini{
+  height:.45cqw; min-height:4px;
+  background:rgba(0,0,0,.6);
+  border:1px solid rgba(255,255,255,.16);
+  border-radius:4px; overflow:hidden;
+  margin:.15cqw 0 .45cqw;
+}
+#tier-mini i{
+  display:block; height:100%; width:0;
+  background:linear-gradient(90deg,#0ecb46,#7dffb4);
+  transition:width .3s ease;
+}
 
-    #image-container.tier-complete .level-number {
-      color: #fff9e6;
-      text-shadow:
-        0 1px 0 rgba(0,0,0,0.95),
-        0 0 8px rgba(255,240,120,0.7),
-        0 0 14px rgba(255,200,60,0.6);
-    }
+/* ==========================================================================
+   BOARD LEVEL WIDGET
+   The stone plaque on the left is the "skill orb": hammer art, two level
+   numbers split by the engraved diagonal, xp bar underneath.
+   ========================================================================== */
+#level-wrap{ position:absolute; inset:0; pointer-events:none; z-index:1500; }
 
-    #image-container.tier-complete #tier-badge {
-      display:block;
-      animation: badge-pop 700ms cubic-bezier(.2,.9,.2,1);
-    }
-    @keyframes badge-pop {
-      0% { transform: translate(-50%, 20px) scale(0.8); opacity:0; }
-      60% { transform: translate(-50%, -6px) scale(1.06); opacity:1; }
-      100% { transform: translate(-50%, 0) scale(1); opacity:1; }
-    }
+.level-number{
+  position:absolute;
+  transform:translate(-50%,-50%);
+  font-size:3.7cqw;
+  line-height:1;
+  color:#ffff00;
+  text-shadow:3px 2px 0 rgba(0,0,0,.66), 0 0 7px rgba(0,0,0,.9);
+  transform-origin:center;
+}
+/* centres of the two numbers, in board pixels: (307,341) and (349,387) */
+#level-slot-1{ left:23.98%; top:47.36%; }
+#level-slot-2{ left:27.27%; top:53.75%; }
 
-    /* base tile (ALL bosses) — positioned with % so it scales/moves
-       with the image at any container size */
-    .boss-tile {
-      position:absolute;
-      cursor:pointer;
-      background-color: transparent;
-      transition: box-shadow 0.18s ease, transform 0.12s, background-color 0.15s ease, filter 0.2s ease;
-      overflow:hidden;
-      z-index:1200;
+#xp-bar-track{
+  position:absolute;
+  left:22.27%; top:57.22%;
+  transform:translate(-50%,-50%);
+  width:15.63%;
+  height:.42cqw; min-height:5px;
+  background:rgba(0,0,0,.72);
+  border:1px solid rgba(255,236,170,.45);
+  border-radius:5px;
+  overflow:hidden;
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.8), 0 1px 4px rgba(0,0,0,.6);
+}
+#xp-bar-fill{
+  height:100%; width:0%;
+  background:linear-gradient(90deg,#0ecb46,#4dffa0);
+  box-shadow:0 0 6px rgba(80,255,140,.7);
+  transition:width .32s ease;
+}
 
-      transform: translate(0px, 1px) scale(1.08);   /* nudge ALL tiles: first two numbers = left/right, up/down (px). scale = size. */
-      transform-origin: center;
-      clip-path: polygon(9.5% 0%, 91% 0%, 91.3% 5%, 95% 5.1%, 95.3% 9%, 95% 9%, 100% 9.4%,100% 91%, 95% 91%, 95% 95%, 91% 95%, 91% 100%, 9% 100%, 9% 95%, 6.5% 95%, 6.5% 91%, 0.5% 91%, 0.5% 9.5%, 6.5% 9.5%, 6.5% 6%, 9.5% 6%);
-    }
+@keyframes pop-scale{
+  0%   { transform:translate(-50%,-50%) scale(.62); filter:brightness(1); }
+  40%  { transform:translate(-50%,-50%) scale(1.18); filter:brightness(1.2); }
+  100% { transform:translate(-50%,-50%) scale(1); }
+}
+.level-number.pop{ animation:pop-scale 420ms cubic-bezier(.2,.9,.2,1); }
 
-    /* ===== Completion look — "natural" version =====
-       No badge, no hard-edged box. A soft green light source glows from
-       the center of the tile and feathers out toward the edges (large
-       blur radii + a wide, gently-fading radial gradient), so it reads
-       as the tile itself lighting up rather than a sticker placed on
-       top of the art. mix-blend-mode: screen makes it brighten/tint
-       the artwork's existing colors instead of masking them. */
-    .boss-tile.completed {
-      box-shadow:
-        inset 0 0 20px 8px rgba(90,255,130,0.16),
-        inset 0 0 42px 16px rgba(60,220,110,0.08),
-        0 0 10px rgba(90,255,130,0.16);
-    }
-    .boss-tile.completed::after {
-      content:"";
-      position:absolute;
-      inset:0;
-      background: radial-gradient(circle at 50% 50%,
-        rgba(150,255,170,0.18) 0%,
-        rgba(110,255,150,0.10) 30%,
-        rgba(80,255,120,0.04) 55%,
-        rgba(80,255,120,0.0) 82%);
-      mix-blend-mode: screen;
-      pointer-events:none;
-    }
+/* floating "+N xp" */
+.xp-drop{
+  position:absolute;
+  left:22.27%; top:52%;
+  font-size:1.6cqw;
+  color:#a6ff7a;
+  text-shadow:0 1px 0 rgba(0,0,0,.95);
+  pointer-events:none;
+  z-index:1600;
+  white-space:nowrap;
+  animation:xp-float 1300ms ease-out forwards;
+}
+.xp-drop.minus{ color:#ff9a8a; }
+@keyframes xp-float{
+  0%   { opacity:1; transform:translate(-50%,0) scale(.95); }
+  20%  { transform:translate(-50%,-18px) scale(1.05); }
+  60%  { opacity:1; transform:translate(-50%,-52px) scale(1.02); }
+  100% { opacity:0; transform:translate(-50%,-88px) scale(1); }
+}
 
-    /* hover for UNCOMPLETED, UNLOCKED tiles (GREY) */
-    .boss-tile:hover:not(.completed):not(.locked) {
-      box-shadow: 0 0 12px rgba(180, 180, 180, 0.25);
-      background-color: rgba(180, 180, 180, 0.08);
-    }
+/* ==========================================================================
+   MESSAGE PLAQUE  (the blank parchment panel on the right of the board)
+   ========================================================================== */
+#notice{
+  position:absolute;
+  left:61.41%;  top:42.92%;      /* 786,309 */
+  width:29.06%; height:13.47%;   /* 372 x 97 */
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  padding:0 1.4cqw;
+  z-index:1700;
+  pointer-events:none;
+  font-size:1.7cqw;
+  line-height:1.34;
+  white-space:pre-line;
+  color:#12206e;
+  opacity:0;
+  transition:opacity .26s ease;
+}
+#notice.show{ opacity:1; }
+#notice.good{ color:#0d5a25; }
+#notice.warn{ color:#8a3a12; }
+#notice.big{ font-size:2.15cqw; }
+#notice.long{ font-size:1.42cqw; }
 
-    /* hover for COMPLETED tiles (glow brightens a touch, still soft/feathered) */
-    .boss-tile.completed:hover {
-      box-shadow:
-        inset 0 0 26px 10px rgba(110,255,150,0.24),
-        inset 0 0 50px 18px rgba(70,230,120,0.12),
-        0 0 13px rgba(110,255,150,0.24);
-    }
-    .boss-tile.completed:hover::after {
-      background: radial-gradient(circle at 50% 50%,
-        rgba(170,255,190,0.24) 0%,
-        rgba(120,255,160,0.13) 30%,
-        rgba(90,255,130,0.05) 55%,
-        rgba(90,255,130,0.0) 82%);
-    }
+#tier-badge{
+  position:absolute;
+  left:61.41%; top:42.92%;
+  width:29.06%; height:13.47%;
+  display:none;
+  align-items:center; justify-content:center;
+  text-align:center;
+  z-index:1750;
+  pointer-events:none;
+  font-size:2.6cqw;
+  color:#0b7a2e;
+  text-shadow:0 1px 0 rgba(255,255,255,.35);
+}
+#image-container.tier-complete #tier-badge{
+  display:flex;
+  animation:badge-pop 700ms cubic-bezier(.2,.9,.2,1);
+}
+/* the badge and the toast share the parchment plaque — never both at once */
+#image-container.msg-live #tier-badge{ display:none; }
+@keyframes badge-pop{
+  0%   { transform:translateY(16px) scale(.85); opacity:0; }
+  60%  { transform:translateY(-4px) scale(1.05); opacity:1; }
+  100% { transform:translateY(0) scale(1); opacity:1; }
+}
 
-    /* ===== Locked tiles (tier not yet unlocked by Board Level) =====
-       Desaturated / darkened + a padlock glyph. Click still fires but is
-       intercepted in JS and shows a toast instead of completing the tile. */
-    .boss-tile.locked {
-      cursor: not-allowed;
-      filter: grayscale(1) brightness(0.42);
-    }
-    .boss-tile.locked:hover {
-      box-shadow: none;
-      background-color: transparent;
-    }
-    .boss-tile.locked::before {
-      content: "🔒";
-      position:absolute;
-      inset:0;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size: 3.2cqw;
-      color: rgba(255,255,255,0.88);
-      text-shadow: 0 2px 5px rgba(0,0,0,0.95);
-      z-index: 5;
-      pointer-events:none;
-    }
+#image-container.tier-complete::after{
+  content:"";
+  position:absolute; inset:-14px;
+  border-radius:10px;
+  z-index:1400;
+  pointer-events:none;
+  box-shadow:
+    0 0 18px rgba(255,220,80,.85),
+    0 0 60px rgba(255,160,50,.55),
+    inset 0 0 30px rgba(255,240,200,.08);
+  animation:glow-pulse 1200ms ease-in-out infinite alternate;
+}
+@keyframes glow-pulse{
+  from{ filter:drop-shadow(0 0 10px rgba(255,220,80,.7)); }
+  to  { filter:drop-shadow(0 0 26px rgba(255,160,50,.9)); }
+}
+#image-container.tier-complete .level-number{
+  color:#fff9e6;
+  text-shadow:0 1px 0 rgba(0,0,0,.95), 0 0 10px rgba(255,240,120,.8), 0 0 18px rgba(255,200,60,.7);
+}
 
-    /* click feel */
-    .boss-tile:active {
-      transform: translate(0px, 0px) scale(1.11);  /* keep translate matching the base rule above */
-    }
-    .boss-tile.locked:active {
-      transform: translate(0px, 1px) scale(1.08); /* locked tiles don't get the press-in feedback */
-    }
+/* ==========================================================================
+   TOOLBAR
+   ========================================================================== */
+#toolbar{
+  width:min(96vw, (96vh - var(--chrome)) * (1280/720));
+  max-width:2400px;
+  height:36px;
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:0 12px;
+  background:linear-gradient(180deg,#3b352b,#241f19);
+  border:1px solid #564c3a;
+  border-radius:6px;
+  box-shadow:0 6px 16px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);
+  font-size:13px;
+}
+#tb-stats{ color:#cbbf9f; letter-spacing:.02em; }
+#tb-stats b{ color:var(--gold); font-weight:normal; }
+#tb-stats .sep{ color:#6b6151; margin:0 7px; }
+#tb-spacer{ flex:1; }
 
-    /* ===== Tile coordinates — % of image (1280x720), measured directly
-       from the source PNG's tile-grid pixels for pixel-accurate placement ===== */
-    /* row 0 */
-    #Obor { top: 3.928%; left: 2.344%; width: 6.484%; height: 11.528%; }
-    #Bryophyta { top: 3.928%; left: 9.609%; width: 6.484%; height: 11.528%; }
-    #Giant-Mole { top: 3.928%; left: 16.953%; width: 6.484%; height: 11.528%; }
-    #Scurrius { top: 3.928%; left: 24.297%; width: 6.484%; height: 11.528%; }
-    #Sarachnis { top: 3.928%; left: 31.641%; width: 6.484%; height: 11.528%; }
-    #Prime { top: 3.928%; left: 61.697%; width: 6.484%; height: 11.528%; }
-    #Supreme { top: 3.928%; left: 69.041%; width: 6.484%; height: 11.528%; }
-    #Rex { top: 3.928%; left: 76.284%; width: 6.484%; height: 11.528%; }
-    #Calvarion { top: 3.928%; left: 83.65%; width: 6.484%; height: 11.528%; }
-    #Spindel { top: 3.928%; left: 91.016%; width: 6.484%; height: 11.528%; }
-    /* row 1 */
-    #KBD { top: 17.083%; left: 2.344%; width: 6.484%; height: 11.528%; }
-    #Amoxliatl { top: 17.083%; left: 9.609%; width: 6.484%; height: 11.528%; }
-    #Barrows { top: 17.083%; left: 31.641%; width: 6.484%; height: 11.528%; }
-    #Jad { top: 14.783%; left: 46.719%; width: 6.506%; height: 11.528%; }
-    #Chaos-Elemental { top: 17.083%; left: 61.697%; width: 6.484%; height: 11.528%; }
-    #Hueycoatl { top: 17.083%; left: 83.65%; width: 6.484%; height: 11.528%; }
-    #Artio { top: 17.083%; left: 91.016%; width: 6.484%; height: 11.528%; }
-    /* row 2 */
-    #Deranged-Archaeologist { top: 30.139%; left: 2.344%; width: 6.484%; height: 11.528%; }
-    #Chaos-Fanatic { top: 30.139%; left: 9.609%; width: 6.484%; height: 11.528%; }
-    #Crazy-Archaeologist { top: 30.139%; left: 16.953%; width: 6.484%; height: 11.528%; }
-    #Royal-Titans { top: 30.139%; left: 24.297%; width: 6.484%; height: 11.528%; }
-    #Moons { top: 30.139%; left: 61.697%; width: 6.484%; height: 11.528%; }
-    #Mad-Angel { top: 30.139%; left: 69.041%; width: 6.484%; height: 11.528%; }
-    #Brutus { top: 30.139%; left: 31.641%; width: 6.484%; height: 11.389%; }
-    #Shellbane-Gryphon { top: 42.678%; left: 40.131%; width: 6.484%; height: 11.389%; }
-    #Scorpia { top: 30.139%; left: 76.284%; width: 6.484%; height: 11.528%; }
-    #Grotesque-Guardians { top: 42.639%; left: 53.35%; width: 6.484%; height: 11.528%; }
-    #Zalcano { top: 30.139%; left: 83.65%; width: 6.484%; height: 11.528%; }
-    #Kraken { top: 56.439%; left: 53.35%; width: 6.484%; height: 11.528%; }
-    #Kalphite-Queen { top: 30.139%; left: 91.016%; width: 6.484%; height: 11.528%; }
-    /* corner specialty tiles */
-    #Hespori { top: 43.961%; left: 2.419%; width: 6.531%; height: 11.578%; }
-    #Skotizo { top: 43.961%; left: 90.969%; width: 6.531%; height: 11.578%; }
-    /* center specialty tiles */
-    #Inferno { top: 28.706%; left: 42.422%; width: 6.506%; height: 11.489%; }
-    #Fortis-Colosseum { top: 28.806%; left: 51.141%; width: 6.506%; height: 11.489%; }
-    /* row 4 */
-    #Kreearra { top: 58.056%; left: 2.344%; width: 6.484%; height: 11.528%; }
-    #General-Graardor { top: 58.056%; left: 9.609%; width: 6.484%; height: 11.528%; }
-    #Kril-Tsutsaroth { top: 58.056%; left: 16.953%; width: 6.484%; height: 11.528%; }
-    #Commander-Zilyana { top: 58.056%; left: 24.297%; width: 6.484%; height: 11.528%; }
-    #Zulrah { top: 58.056%; left: 31.641%; width: 6.484%; height: 11.528%; }
-    #Araxxor { top: 70.356%; left: 53.35%; width: 6.484%; height: 11.528%; }
-    #Cerberus { top: 70.356%; left: 40.131%; width: 6.484%; height: 11.528%; }
-    #Alchemical-Hydra { top: 84.256%; left: 53.35%; width: 6.484%; height: 11.528%; }
-    #Nex { top: 58.056%; left: 83.65%; width: 6.484%; height: 11.528%; }
-    #Tombs-of-Amascut { top: 58.056%; left: 91.016%; width: 6.484%; height: 11.528%; }
-    /* row 5 */
-    #Vorkath { top: 71.111%; left: 2.344%; width: 6.484%; height: 11.528%; }
-    #Phantom-Muspah { top: 71.111%; left: 9.609%; width: 6.484%; height: 11.528%; }
-    #Nightmare { top: 71.111%; left: 31.641%; width: 6.484%; height: 11.389%; }
-    #Thermonuclear-Smoke-Devil { top: 84.111%; left: 40.131%; width: 6.584%; height: 11.589%; }
-    #Phosanis-Nightmare { top: 58.256%; left: 69.041%; width: 6.406%; height: 11.389%; }
-    #Maggot-King { top: 58.256%; left: 76.284%; width: 6.484%; height: 11.528%; }
-    #Corrupted-Hunllef { top: 71.111%; left: 61.697%; width: 6.484%; height: 11.389%; }
-    #Doom-of-Mokhaiotl { top: 71.111%; left: 83.65%; width: 6.484%; height: 11.389%; }
-    #Chambers-of-Xeric { top: 71.111%; left: 91.016%; width: 6.484%; height: 11.389%; }
-    /* row 6 */
-    #Callisto { top: 83.928%; left: 2.344%; width: 6.484%; height: 11.528%; }
-    #Vetion { top: 83.928%; left: 9.609%; width: 6.484%; height: 11.528%; }
-    #Venenatis { top: 83.928%; left: 16.953%; width: 6.484%; height: 11.528%; }
-    #Hunllef { top: 83.928%; left: 24.297%; width: 6.484%; height: 11.528%; }
-    #Abyssal-Sire { top: 56.528%; left: 40.141%; width: 6.484%; height: 11.528%; }
-    #Corporeal-Beast { top: 83.928%; left: 31.641%; width: 6.484%; height: 11.528%; }
-    #Duke-Sucellus { top: 58.256%; left: 61.697%; width: 6.406%; height: 11.528%; }
-    #The-Leviathan { top: 83.928%; left: 61.697%; width: 6.484%; height: 11.528%; }
-    #The-Whisperer { top: 83.928%; left: 69.041%; width: 6.484%; height: 11.667%; }
-    #Vardorvis { top: 83.928%; left: 76.284%; width: 6.484%; height: 11.528%; }
-    #Yama { top: 83.928%; left: 83.65%; width: 6.406%; height: 11.528%; }
-    #Theatre-of-Blood { top: 83.928%; left: 91.016%; width: 6.484%; height: 11.528%; }
+.tb-btn{
+  appearance:none;
+  font-family:inherit;
+  font-size:13px;
+  color:#e7dcc2;
+  background:linear-gradient(180deg,#5a5041,#3a332a);
+  border:1px solid #6d6151;
+  border-radius:5px;
+  padding:5px 11px;
+  cursor:pointer;
+  transition:background .15s ease, border-color .15s ease, color .15s ease;
+}
+.tb-btn:hover{ background:linear-gradient(180deg,#6b6050,#453d32); border-color:#8a7c66; }
+.tb-btn:active{ transform:translateY(1px); }
+.tb-btn:focus-visible{ outline:2px solid var(--gold); outline-offset:1px; }
+.tb-btn.armed{
+  background:linear-gradient(180deg,#8c3a2c,#5e2419);
+  border-color:#c05a42; color:#ffe2d6;
+}
+.tb-btn.off{ color:#8c8272; }
 
-    /* small helper link area for downloading font if needed */
-    #helpers {
-      margin-top:14px;
-      display:flex;
-      gap:12px;
-      justify-content:center;
-      width:100%;
-      max-width:1280px;
-    }
-    #helpers a {
-      color:#fff;
-      text-decoration:none;
-      background:rgba(0,0,0,0.45);
-      padding:8px 12px;
-      border-radius:8px;
-      font-size:13px;
-      box-shadow:0 6px 14px rgba(0,0,0,0.6);
-    }
-  </style>
+/* ---- volume slider ---- */
+.tb-vol{
+  -webkit-appearance:none; appearance:none;
+  width:96px; height:16px;
+  margin:0; padding:0;
+  background:transparent;
+  cursor:pointer;
+  flex:0 0 auto;
+  transition:opacity .15s ease;
+}
+.tb-vol.muted{ opacity:.42; }
+.tb-vol:focus-visible{ outline:2px solid var(--gold); outline-offset:3px; border-radius:4px; }
+
+/* the filled portion is driven by --vol-pct, which the script keeps in sync */
+.tb-vol::-webkit-slider-runnable-track{
+  height:6px;
+  border:1px solid #6d6151;
+  border-radius:3px;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.75);
+  background:linear-gradient(90deg,
+    #b99646 0 var(--vol-pct,70%), #241f19 var(--vol-pct,70%) 100%);
+}
+.tb-vol::-moz-range-track{
+  height:6px;
+  border:1px solid #6d6151;
+  border-radius:3px;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.75);
+  background:linear-gradient(90deg,
+    #b99646 0 var(--vol-pct,70%), #241f19 var(--vol-pct,70%) 100%);
+}
+.tb-vol::-webkit-slider-thumb{
+  -webkit-appearance:none; appearance:none;
+  width:11px; height:16px;
+  margin-top:-6px;                 /* centres the thumb on the 6px track */
+  border:1px solid #443b2e;
+  border-radius:2px;
+  background:linear-gradient(180deg,#f2e3b8,#a89468);
+  box-shadow:0 1px 3px rgba(0,0,0,.7);
+}
+.tb-vol::-moz-range-thumb{
+  width:11px; height:16px;
+  border:1px solid #443b2e;
+  border-radius:2px;
+  background:linear-gradient(180deg,#f2e3b8,#a89468);
+  box-shadow:0 1px 3px rgba(0,0,0,.7);
+}
+#vol-val{
+  color:#9d9280;
+  font-variant-numeric:tabular-nums;
+  min-width:34px;
+  text-align:right;
+}
+
+@media (max-width:760px){
+  #tb-stats .hide-sm{ display:none; }
+  #toolbar{ font-size:12px; }
+  .tb-vol{ width:70px; }
+  #vol-val{ min-width:30px; }
+}
+</style>
 </head>
 <body>
 
-  <audio id="completion-sound" src="UniqueDrop.mp3" preload="auto"></audio>
-  <audio id="levelup-sound" src="UniqueDrop.mp3" preload="auto"></audio>
+<audio id="sfx-complete" src="UniqueDrop.mp3" preload="auto"></audio>
+<audio id="sfx-levelup"  src="UniqueDrop.mp3" preload="auto"></audio>
 
-  <div id="image-container" role="application" aria-label="OSRS Trial of Tiers tracker">
-    <div id="notification-bar" aria-live="polite"></div>
+<div id="image-container" role="application" aria-label="Trial of Tiers boss tracker">
 
-    <!-- Mute button: toggles all tracker sound effects on/off. State is
-         saved in localStorage so it persists across reloads. -->
-    <button id="mute-btn" type="button" aria-label="Mute sound effects" title="Mute sound effects" onclick="toggleMute()">🔊</button>
+  <!-- message plaque -->
+  <div id="notice" aria-live="polite"></div>
+  <div id="tier-badge">Trial of Tiers Completed!</div>
 
-    <!-- Board Level widget (OSRS skill-orb style). #level-slot-1 (icon + first
-         number + hover tooltip) and #level-slot-2 (duplicate number only) can
-         each be repositioned independently via their CSS left/top. #xp-bar-wrap
-         is a third, fully independent positioning group for the progress bar. -->
-    <div id="level-wrap">
-      <div id="level-slot-1" class="level-slot">
-        <div id="level-tooltip">
-          <span class="tt-title">Board Level</span>
-          <span id="tt-total-xp">Total XP: 0</span><br/>
-          <span id="tt-next-level">XP to next level: 0</span>
-        </div>
-        <div class="level-icon">
-          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          </svg>
-        </div>
-        <div class="level-number">1</div>
-      </div>
-
-      <div id="level-slot-2" class="level-slot">
-        <div class="level-number">1</div>
-      </div>
-
-      <div id="xp-bar-wrap">
-        <div id="xp-bar-track"><div id="xp-bar-fill"></div></div>
-      </div>
-    </div>
-
-    <div id="tier-badge">Trial of Tiers Completed!</div>
-
-    <!-- boss tiles (click to toggle) -->
-    <div id="Obor" class="boss-tile" onclick="toggleComplete('Obor')"></div>
-    <div id="Bryophyta" class="boss-tile" onclick="toggleComplete('Bryophyta')"></div>
-    <div id="Giant-Mole" class="boss-tile" onclick="toggleComplete('Giant-Mole')"></div>
-    <div id="Scurrius" class="boss-tile" onclick="toggleComplete('Scurrius')"></div>
-    <div id="Sarachnis" class="boss-tile" onclick="toggleComplete('Sarachnis')"></div>
-    <div id="Prime" class="boss-tile" onclick="toggleComplete('Prime')"></div>
-    <div id="Supreme" class="boss-tile" onclick="toggleComplete('Supreme')"></div>
-    <div id="Rex" class="boss-tile" onclick="toggleComplete('Rex')"></div>
-    <div id="Calvarion" class="boss-tile" onclick="toggleComplete('Calvarion')"></div>
-    <div id="Spindel" class="boss-tile" onclick="toggleComplete('Spindel')"></div>
-    <div id="KBD" class="boss-tile" onclick="toggleComplete('KBD')"></div>
-    <div id="Amoxliatl" class="boss-tile" onclick="toggleComplete('Amoxliatl')"></div>
-    <div id="Barrows" class="boss-tile" onclick="toggleComplete('Barrows')"></div>
-    <div id="Jad" class="boss-tile" onclick="toggleComplete('Jad')"></div>
-    <div id="Chaos-Elemental" class="boss-tile" onclick="toggleComplete('Chaos-Elemental')"></div>
-    <div id="Hueycoatl" class="boss-tile" onclick="toggleComplete('Hueycoatl')"></div>
-    <div id="Artio" class="boss-tile" onclick="toggleComplete('Artio')"></div>
-    <div id="Crazy-Archaeologist" class="boss-tile" onclick="toggleComplete('Crazy-Archaeologist')"></div>
-    <div id="Chaos-Fanatic" class="boss-tile" onclick="toggleComplete('Chaos-Fanatic')"></div>
-    <div id="Deranged-Archaeologist" class="boss-tile" onclick="toggleComplete('Deranged-Archaeologist')"></div>
-    <div id="Royal-Titans" class="boss-tile" onclick="toggleComplete('Royal-Titans')"></div>
-    <div id="Moons" class="boss-tile" onclick="toggleComplete('Moons')"></div>
-    <div id="Mad-Angel" class="boss-tile" onclick="toggleComplete('Mad-Angel')"></div>
-    <div id="Scorpia" class="boss-tile" onclick="toggleComplete('Scorpia')"></div>
-    <div id="Grotesque-Guardians" class="boss-tile" onclick="toggleComplete('Grotesque-Guardians')"></div>
-    <div id="Zalcano" class="boss-tile" onclick="toggleComplete('Zalcano')"></div>
-    <div id="Kraken" class="boss-tile" onclick="toggleComplete('Kraken')"></div>
-    <div id="Kalphite-Queen" class="boss-tile" onclick="toggleComplete('Kalphite-Queen')"></div>
-    <div id="Hespori" class="boss-tile" onclick="toggleComplete('Hespori')"></div>
-    <div id="Skotizo" class="boss-tile" onclick="toggleComplete('Skotizo')"></div>
-    <div id="Inferno" class="boss-tile" onclick="toggleComplete('Inferno')"></div>
-    <div id="Fortis-Colosseum" class="boss-tile" onclick="toggleComplete('Fortis-Colosseum')"></div>
-    <div id="Kreearra" class="boss-tile" onclick="toggleComplete('Kreearra')"></div>
-    <div id="General-Graardor" class="boss-tile" onclick="toggleComplete('General-Graardor')"></div>
-    <div id="Kril-Tsutsaroth" class="boss-tile" onclick="toggleComplete('Kril-Tsutsaroth')"></div>
-    <div id="Commander-Zilyana" class="boss-tile" onclick="toggleComplete('Commander-Zilyana')"></div>
-    <div id="Zulrah" class="boss-tile" onclick="toggleComplete('Zulrah')"></div>
-    <div id="Araxxor" class="boss-tile" onclick="toggleComplete('Araxxor')"></div>
-    <div id="Cerberus" class="boss-tile" onclick="toggleComplete('Cerberus')"></div>
-    <div id="Alchemical-Hydra" class="boss-tile" onclick="toggleComplete('Alchemical-Hydra')"></div>
-    <div id="Nex" class="boss-tile" onclick="toggleComplete('Nex')"></div>
-    <div id="Tombs-of-Amascut" class="boss-tile" onclick="toggleComplete('Tombs-of-Amascut')"></div>
-    <div id="Vorkath" class="boss-tile" onclick="toggleComplete('Vorkath')"></div>
-    <div id="Phantom-Muspah" class="boss-tile" onclick="toggleComplete('Phantom-Muspah')"></div>
-    <div id="Nightmare" class="boss-tile" onclick="toggleComplete('Nightmare')"></div>
-    <div id="Thermonuclear-Smoke-Devil" class="boss-tile" onclick="toggleComplete('Thermonuclear-Smoke-Devil')"></div>
-    <div id="Phosanis-Nightmare" class="boss-tile" onclick="toggleComplete('Phosanis-Nightmare')"></div>
-    <div id="Maggot-King" class="boss-tile" onclick="toggleComplete('Maggot-King')"></div>
-    <div id="Corrupted-Hunllef" class="boss-tile" onclick="toggleComplete('Corrupted-Hunllef')"></div>
-    <div id="Doom-of-Mokhaiotl" class="boss-tile" onclick="toggleComplete('Doom-of-Mokhaiotl')"></div>
-    <div id="Chambers-of-Xeric" class="boss-tile" onclick="toggleComplete('Chambers-of-Xeric')"></div>
-    <div id="Callisto" class="boss-tile" onclick="toggleComplete('Callisto')"></div>
-    <div id="Vetion" class="boss-tile" onclick="toggleComplete('Vetion')"></div>
-    <div id="Venenatis" class="boss-tile" onclick="toggleComplete('Venenatis')"></div>
-    <div id="Hunllef" class="boss-tile" onclick="toggleComplete('Hunllef')"></div>
-    <div id="Abyssal-Sire" class="boss-tile" onclick="toggleComplete('Abyssal-Sire')"></div>
-    <div id="Corporeal-Beast" class="boss-tile" onclick="toggleComplete('Corporeal-Beast')"></div>
-    <div id="Duke-Sucellus" class="boss-tile" onclick="toggleComplete('Duke-Sucellus')"></div>
-    <div id="The-Leviathan" class="boss-tile" onclick="toggleComplete('The-Leviathan')"></div>
-    <div id="The-Whisperer" class="boss-tile" onclick="toggleComplete('The-Whisperer')"></div>
-    <div id="Vardorvis" class="boss-tile" onclick="toggleComplete('Vardorvis')"></div>
-    <div id="Yama" class="boss-tile" onclick="toggleComplete('Yama')"></div>
-    <div id="Shellbane-Gryphon" class="boss-tile" onclick="toggleComplete('Shellbane-Gryphon')"></div>
-    <div id="Theatre-of-Blood" class="boss-tile" onclick="toggleComplete('Theatre-of-Blood')"></div>
-    <div id="Brutus" class="boss-tile" onclick="toggleComplete('Brutus')"></div>
+  <!-- board level widget -->
+  <div id="level-wrap">
+    <div class="level-number" id="level-slot-1">1</div>
+    <div class="level-number" id="level-slot-2">1</div>
+    <div id="xp-bar-track"><div id="xp-bar-fill"></div></div>
   </div>
 
-  <script>
-    // ==========================================================================
-    // OSRS-STYLE XP TABLE
-    // Standard RuneScape leveling formula. XP_TABLE[L] = cumulative xp needed
-    // to REACH level L. Index 0 is unused. Verified: XP_TABLE[99] === 13034431.
-    // ==========================================================================
-    const XP_TABLE = [0, 0, 83, 174, 276, 388, 512, 650, 801, 969, 1154, 1358, 1584, 1833, 2107, 2411, 2746, 3115, 3523, 3973, 4470, 5018, 5624, 6291, 7028, 7842, 8740, 9730, 10824, 12031, 13363, 14833, 16456, 18247, 20224, 22406, 24815, 27473, 30408, 33648, 37224, 41171, 45529, 50339, 55649, 61512, 67983, 75127, 83014, 91721, 101333, 111945, 123660, 136594, 150872, 166636, 184040, 203254, 224466, 247886, 273742, 302288, 333804, 368599, 407015, 449428, 496254, 547953, 605032, 668051, 737627, 814445, 899257, 992895, 1096278, 1210421, 1336443, 1475581, 1629200, 1798808, 1986068, 2192818, 2421087, 2673114, 2951373, 3258594, 3597792, 3972294, 4385776, 4842295, 5346332, 5902831, 6517253, 7195629, 7944614, 8771558, 9684577, 10692629, 11805606, 13034431];
-    const MAX_LEVEL = 99;
-    const MAX_XP = XP_TABLE[MAX_LEVEL]; // 13,034,431
+  <!-- tooltips -->
+  <div class="tip" id="tile-tip" role="tooltip"></div>
+  <div class="tip" id="tier-tip" role="tooltip"></div>
 
-    // ==========================================================================
-    // Per-boss XP rewards. Every tile's xp value was derived so that the 65
-    // tiles sum to EXACTLY 13,034,431 xp (level 99), split into bands that line
-    // up with the requested tier level-ranges:
-    //   Apprentice (13 tiles): level 1  -> 30
-    //   Jad        (1 tile,  milestone gate): level 30 -> 35
-    //   Adept      (13 tiles): level 35 -> 60
-    //   Expert     (13 tiles): level 60 -> 80
-    //   Remaining budget (level 80 -> 99) is split across Master (13),
-    //   Slayer (8), Passive/Hespori+Skotizo (2), Colosseum (1) and Inferno (1),
-    //   so ALL 65 tiles are required to hit level 99 — matching "all 65 boss
-    //   tiles add up to level 99 once all of them are complete."
-    // ==========================================================================
-    const TILE_XP = {
-      "Obor": 1027, "Bryophyta": 1027, "Giant-Mole": 1027, "Scurrius": 1027, "Sarachnis": 1027,
-      "KBD": 1027, "Amoxliatl": 1027, "Barrows": 1027, "Deranged-Archaeologist": 1027,
-      "Chaos-Fanatic": 1027, "Crazy-Archaeologist": 1027, "Royal-Titans": 1027, "Brutus": 1039,
-      "Jad": 9043,
-      "Prime": 19333, "Supreme": 19333, "Rex": 19333, "Calvarion": 19333, "Spindel": 19333,
-      "Chaos-Elemental": 19333, "Hueycoatl": 19333, "Artio": 19333, "Moons": 19333,
-      "Mad-Angel": 19333, "Scorpia": 19333, "Zalcano": 19333, "Kalphite-Queen": 19340,
-      "Kreearra": 131717, "General-Graardor": 131717, "Kril-Tsutsaroth": 131717,
-      "Commander-Zilyana": 131717, "Zulrah": 131717, "Vorkath": 131717, "Phantom-Muspah": 131717,
-      "Nightmare": 131717, "Callisto": 131717, "Vetion": 131717, "Venenatis": 131717,
-      "Hunllef": 131717, "Corporeal-Beast": 131722,
-      "Duke-Sucellus": 467430, "Phosanis-Nightmare": 467430, "Maggot-King": 467430,
-      "Nex": 467430, "Tombs-of-Amascut": 467430, "Corrupted-Hunllef": 467430,
-      "Doom-of-Mokhaiotl": 467430, "Chambers-of-Xeric": 467430, "The-Leviathan": 467430,
-      "The-Whisperer": 467430, "Vardorvis": 467430, "Yama": 467430, "Theatre-of-Blood": 467441,
-      "Shellbane-Gryphon": 207156, "Grotesque-Guardians": 207156, "Abyssal-Sire": 207156,
-      "Kraken": 207156, "Cerberus": 207156, "Araxxor": 207156, "Thermonuclear-Smoke-Devil": 207156,
-      "Alchemical-Hydra": 207162,
-      "Hespori": 552418, "Skotizo": 552418,
-      "Fortis-Colosseum": 883869,
-      "Inferno": 1325803
-    };
+  <!-- boss tiles + hotspots are generated by the script below -->
+</div>
 
-    // Which tier each tile belongs to
-    const TILE_CATEGORY = {
-      "Hespori": "passive", "Skotizo": "passive",
-      "Obor": "apprentice", "Bryophyta": "apprentice", "Giant-Mole": "apprentice",
-      "Scurrius": "apprentice", "Sarachnis": "apprentice", "KBD": "apprentice",
-      "Amoxliatl": "apprentice", "Barrows": "apprentice", "Deranged-Archaeologist": "apprentice",
-      "Chaos-Fanatic": "apprentice", "Crazy-Archaeologist": "apprentice", "Royal-Titans": "apprentice",
-      "Brutus": "apprentice",
-      "Jad": "jad",
-      "Prime": "adept", "Supreme": "adept", "Rex": "adept", "Calvarion": "adept", "Spindel": "adept",
-      "Chaos-Elemental": "adept", "Hueycoatl": "adept", "Artio": "adept", "Moons": "adept",
-      "Mad-Angel": "adept", "Scorpia": "adept", "Zalcano": "adept", "Kalphite-Queen": "adept",
-      "Shellbane-Gryphon": "slayer", "Grotesque-Guardians": "slayer", "Abyssal-Sire": "slayer",
-      "Kraken": "slayer", "Cerberus": "slayer", "Araxxor": "slayer",
-      "Thermonuclear-Smoke-Devil": "slayer", "Alchemical-Hydra": "slayer",
-      "Kreearra": "expert", "General-Graardor": "expert", "Kril-Tsutsaroth": "expert",
-      "Commander-Zilyana": "expert", "Zulrah": "expert", "Vorkath": "expert",
-      "Phantom-Muspah": "expert", "Nightmare": "expert", "Callisto": "expert", "Vetion": "expert",
-      "Venenatis": "expert", "Hunllef": "expert", "Corporeal-Beast": "expert",
-      "Duke-Sucellus": "master", "Phosanis-Nightmare": "master", "Maggot-King": "master",
-      "Nex": "master", "Tombs-of-Amascut": "master", "Corrupted-Hunllef": "master",
-      "Doom-of-Mokhaiotl": "master", "Chambers-of-Xeric": "master", "The-Leviathan": "master",
-      "The-Whisperer": "master", "Vardorvis": "master", "Yama": "master", "Theatre-of-Blood": "master",
-      "Fortis-Colosseum": "colosseum",
-      "Inferno": "inferno"
-    };
+<div id="toolbar">
+  <span id="tb-stats"></span>
+  <span id="tb-spacer"></span>
+  <button class="tb-btn" id="btn-sound" type="button" title="Toggle sound (M)">🔊 Sound</button>
+  <input class="tb-vol" id="vol" type="range" min="0" max="100" step="5" value="70"
+         aria-label="Volume" title="Volume" />
+  <span id="vol-val">70%</span>
+  <button class="tb-btn" id="btn-reset" type="button" title="Reset all progress">↺ Reset</button>
+</div>
 
-    // Board Level required to unlock each tier's tiles
-    const CATEGORY_UNLOCK_LEVEL = {
-      passive: 1, apprentice: 1, jad: 30, adept: 35, slayer: 60,
-      expert: 60, master: 80, colosseum: 85, inferno: 90
-    };
+<script>
+"use strict";
 
-    const CATEGORY_LABEL = {
-      passive: "Passive", apprentice: "Apprentice", jad: "Jad", adept: "Adept",
-      slayer: "Slayer", expert: "Expert", master: "Master",
-      colosseum: "Fortis Colosseum", inferno: "The Inferno"
-    };
+/* ==========================================================================
+ * 1. CONFIG — this is the only part you should ever need to edit.
+ * ========================================================================== */
 
-    const bossTiles = Object.keys(TILE_CATEGORY);
+const BOARD_IMAGE = "OSRS_Bossing_Canvas_Updating.png";
+const BOARD_W = 1280, BOARD_H = 720;
+const STORAGE_KEY = "osrsTrialOfTiers_v4";
 
-    const storageKey = 'osrsBossTrackerProgress_v3';
-    const muteStorageKey = 'osrsBossTrackerMuted_v1';
+/* --- Tile rectangles, in PIXELS of the 1280x720 board image: [x, y, w, h] ---
+   Measured directly off the PNG's slot grid: 89x89 slots on a 94px pitch,
+   93x93 for the Slayer column and the centre/corner specialty tiles.        */
+const TILES = {
+  "Obor":                      [  27,  27, 89, 89],
+  "Bryophyta":                 [ 121,  27, 89, 89],
+  "Giant-Mole":                [ 215,  27, 89, 89],
+  "Scurrius":                  [ 309,  27, 89, 89],
+  "Sarachnis":                 [ 403,  27, 89, 89],
+  "KBD":                       [  27, 121, 89, 89],
+  "Amoxliatl":                 [ 121, 121, 89, 89],
+  "Barrows":                   [ 403, 121, 89, 89],
+  "Deranged-Archaeologist":    [  27, 215, 89, 89],
+  "Chaos-Fanatic":             [ 121, 215, 89, 89],
+  "Crazy-Archaeologist":       [ 215, 215, 89, 89],
+  "Royal-Titans":              [ 309, 215, 89, 89],
+  "Brutus":                    [ 403, 215, 89, 89],
 
-    // Both level-number displays are updated together — query them live each
-    // time rather than caching a single reference.
-    const levelNumberEls = document.querySelectorAll('.level-number');
-    const xpBarFill = document.getElementById('xp-bar-fill');
-    const dropAnchor = document.getElementById('level-slot-1'); // xp-drop floats near slot 1
-    const ttTotalXp = document.getElementById('tt-total-xp');
-    const ttNextLevel = document.getElementById('tt-next-level');
-    const imgContainer = document.getElementById('image-container');
-    const toast = document.getElementById('notification-bar');
-    const muteBtn = document.getElementById('mute-btn');
+  "Jad":                       [ 594, 102, 93, 93],
 
-    // total xp is tracked in a plain variable now (not a DOM dataset) since
-    // there's more than one number element on screen.
-    let lastXp = 0;
-    let isMuted = false;
+  "Prime":                     [ 786,  27, 89, 89],
+  "Supreme":                   [ 880,  27, 89, 89],
+  "Rex":                       [ 974,  27, 89, 89],
+  "Calvarion":                 [1068,  27, 89, 89],
+  "Spindel":                   [1162,  27, 89, 89],
+  "Chaos-Elemental":           [ 786, 121, 89, 89],
+  "Hueycoatl":                 [1068, 121, 89, 89],
+  "Artio":                     [1162, 121, 89, 89],
+  "Moons":                     [ 786, 215, 89, 89],
+  "Mad-Angel":                 [ 880, 215, 89, 89],
+  "Scorpia":                   [ 974, 215, 89, 89],
+  "Zalcano":                   [1068, 215, 89, 89],
+  "Kalphite-Queen":            [1162, 215, 89, 89],
 
-    function fmt(n){ return n.toLocaleString('en-US'); }
+  "Shellbane-Gryphon":         [ 509, 302, 93, 93],
+  "Grotesque-Guardians":       [ 678, 302, 93, 93],
+  "Abyssal-Sire":              [ 509, 402, 93, 93],
+  "Kraken":                    [ 678, 402, 93, 93],
+  "Cerberus":                  [ 509, 502, 93, 93],
+  "Araxxor":                   [ 678, 502, 93, 93],
+  "Thermonuclear-Smoke-Devil": [ 509, 601, 93, 93],
+  "Alchemical-Hydra":          [ 678, 601, 93, 93],
 
-    // helper: show small toast (queue-friendly via optional delay)
-    function showNotification(msg, ms = 2200, delay = 0){
-      const fire = () => {
-        toast.textContent = msg;
-        toast.classList.add('show');
-        clearTimeout(toast._hideTimeout);
-        toast._hideTimeout = setTimeout(()=> toast.classList.remove('show'), ms);
-      };
-      if(delay > 0) setTimeout(fire, delay); else fire();
-    }
+  "Kreearra":                  [  27, 416, 89, 89],
+  "General-Graardor":          [ 121, 416, 89, 89],
+  "Kril-Tsutsaroth":           [ 215, 416, 89, 89],
+  "Commander-Zilyana":         [ 309, 416, 89, 89],
+  "Zulrah":                    [ 403, 416, 89, 89],
+  "Vorkath":                   [  27, 509, 89, 89],
+  "Phantom-Muspah":            [ 121, 509, 89, 89],
+  "Nightmare":                 [ 403, 509, 89, 89],
+  "Callisto":                  [  27, 603, 89, 89],
+  "Vetion":                    [ 121, 603, 89, 89],
+  "Venenatis":                 [ 215, 603, 89, 89],
+  "Hunllef":                   [ 309, 603, 89, 89],
+  "Corporeal-Beast":           [ 403, 603, 89, 89],
 
-    // ===== Mute control =====
-    function applyMuteState(){
-      const sounds = [document.getElementById('completion-sound'), document.getElementById('levelup-sound')];
-      sounds.forEach(s => { if(s) s.muted = isMuted; });
-      muteBtn.textContent = isMuted ? '🔇' : '🔊';
-      muteBtn.classList.toggle('muted', isMuted);
-      muteBtn.setAttribute('aria-label', isMuted ? 'Unmute sound effects' : 'Mute sound effects');
-      muteBtn.title = isMuted ? 'Unmute sound effects' : 'Mute sound effects';
-    }
+  "Duke-Sucellus":             [ 786, 416, 89, 89],
+  "Phosanis-Nightmare":        [ 880, 416, 89, 89],
+  "Maggot-King":               [ 974, 416, 89, 89],
+  "Nex":                       [1068, 416, 89, 89],
+  "Tombs-of-Amascut":          [1162, 416, 89, 89],
+  "Corrupted-Hunllef":         [ 786, 509, 89, 89],
+  "Doom-of-Mokhaiotl":         [1068, 509, 89, 89],
+  "Chambers-of-Xeric":         [1162, 509, 89, 89],
+  "The-Leviathan":             [ 786, 603, 89, 89],
+  "The-Whisperer":             [ 880, 603, 89, 89],
+  "Vardorvis":                 [ 974, 603, 89, 89],
+  "Yama":                      [1068, 603, 89, 89],
+  "Theatre-of-Blood":          [1162, 603, 89, 89],
 
-    function toggleMute(){
-      isMuted = !isMuted;
-      localStorage.setItem(muteStorageKey, JSON.stringify(isMuted));
-      applyMuteState();
-      showNotification(isMuted ? '🔇 Sound muted' : '🔊 Sound unmuted', 1400);
-    }
+  "Hespori":                   [  27, 312, 92, 93],
+  "Skotizo":                   [1161, 312, 92, 93],
+  "Fortis-Colosseum":          [ 650, 203, 93, 93],
+  "Inferno":                   [ 538, 203, 93, 93]
+};
 
-    function loadMuteState(){
-      const raw = localStorage.getItem(muteStorageKey);
-      if(raw !== null){
-        try { isMuted = JSON.parse(raw); } catch(e){ isMuted = false; }
-      }
-      applyMuteState();
-    }
+/* Display names. Anything not listed here just has its hyphens turned into
+   spaces, so you only need an entry when you want something different.     */
+const NAME_OVERRIDES = {
+  "KBD":"King Black Dragon", "Barrows":"Barrows Brothers",
+  "Royal-Titans":"The Royal Titans", "Prime":"Dagannoth Prime",
+  "Supreme":"Dagannoth Supreme", "Rex":"Dagannoth Rex",
+  "Calvarion":"Calvar'ion", "Hueycoatl":"The Hueycoatl",
+  "Moons":"Moons of Peril", "Kreearra":"Kree'arra",
+  "Kril-Tsutsaroth":"K'ril Tsutsaroth", "Vetion":"Vet'ion",
+  "Hunllef":"Crystalline Hunllef", "Nightmare":"The Nightmare",
+  "Phosanis-Nightmare":"Phosani's Nightmare",
+  "Jad":"TzTok-Jad · Fight Caves",
+  "Inferno":"TzKal-Zuk · The Inferno",
+  "Fortis-Colosseum":"Sol Heredit · Fortis Colosseum"
+};
 
-    // Given total xp, return the current level (1-99)
-    function levelForXp(xp){
-      let lvl = 1;
-      for(let L = MAX_LEVEL; L >= 1; L--){
-        if(xp >= XP_TABLE[L]){ lvl = L; break; }
-      }
-      return lvl;
-    }
+/* Which tier each tile belongs to. */
+const TILE_TIER = {
+  "Hespori":"bonus", "Skotizo":"bonus",
+  "Obor":"apprentice","Bryophyta":"apprentice","Giant-Mole":"apprentice",
+  "Scurrius":"apprentice","Sarachnis":"apprentice","KBD":"apprentice",
+  "Amoxliatl":"apprentice","Barrows":"apprentice","Deranged-Archaeologist":"apprentice",
+  "Chaos-Fanatic":"apprentice","Crazy-Archaeologist":"apprentice",
+  "Royal-Titans":"apprentice","Brutus":"apprentice",
+  "Jad":"jad",
+  "Prime":"adept","Supreme":"adept","Rex":"adept","Calvarion":"adept","Spindel":"adept",
+  "Chaos-Elemental":"adept","Hueycoatl":"adept","Artio":"adept","Moons":"adept",
+  "Mad-Angel":"adept","Scorpia":"adept","Zalcano":"adept","Kalphite-Queen":"adept",
+  "Shellbane-Gryphon":"slayer","Grotesque-Guardians":"slayer","Abyssal-Sire":"slayer",
+  "Kraken":"slayer","Cerberus":"slayer","Araxxor":"slayer",
+  "Thermonuclear-Smoke-Devil":"slayer","Alchemical-Hydra":"slayer",
+  "Kreearra":"expert","General-Graardor":"expert","Kril-Tsutsaroth":"expert",
+  "Commander-Zilyana":"expert","Zulrah":"expert","Vorkath":"expert",
+  "Phantom-Muspah":"expert","Nightmare":"expert","Callisto":"expert","Vetion":"expert",
+  "Venenatis":"expert","Hunllef":"expert","Corporeal-Beast":"expert",
+  "Duke-Sucellus":"master","Phosanis-Nightmare":"master","Maggot-King":"master",
+  "Nex":"master","Tombs-of-Amascut":"master","Corrupted-Hunllef":"master",
+  "Doom-of-Mokhaiotl":"master","Chambers-of-Xeric":"master","The-Leviathan":"master",
+  "The-Whisperer":"master","Vardorvis":"master","Yama":"master","Theatre-of-Blood":"master",
+  "Fortis-Colosseum":"colosseum",
+  "Inferno":"inferno"
+};
 
-    // toggle a tile's completion
-    function toggleComplete(bossId){
-      const tile = document.getElementById(bossId);
-      if(!tile) return;
+/* Tier rules. `kc` and `ca` are what the hover popups read out.
+   Set `ca:false` on a tier if Combat Achievements shouldn't count there.  */
+const TIERS = {
+  /* Hespori + Skotizo are deliberately cheap (7,398 xp for the pair, about
+     level 24), so opening the board with both still can't skip the Level 30
+     Fight Caves gate. Raise their XP and you'd need to raise this unlock too. */
+  bonus:      { label:"Bonus Tiles", unlock:1,  kc:50,   ca:true,
+                note:"Limited-access bosses — they count toward your level any time." },
+  apprentice: { label:"Apprentice",  unlock:1,  kc:50,   ca:true },
+  jad:        { label:"Fight Caves", unlock:30, kc:1,    ca:false,
+                kcText:"Kill TzTok-Jad — a Fight Caves completion" },
+  adept:      { label:"Adept",       unlock:35, kc:50,   ca:true },
+  slayer:     { label:"Slayer",      unlock:60, kc:100,  ca:true },
+  expert:     { label:"Expert",      unlock:60, kc:100,  ca:true },
+  master:     { label:"Master",      unlock:80, kc:100,  ca:true },
+  colosseum:  { label:"Fortis Colosseum", unlock:85, kc:1, ca:false,
+                kcText:"Kill Sol Heredit — a wave 12 completion" },
+  inferno:    { label:"The Inferno", unlock:90, kc:1,    ca:false,
+                kcText:"Kill TzKal-Zuk — an Inferno completion" }
+};
 
-      const willComplete = !tile.classList.contains('completed');
+/* Hover hotspots painted over the board's printed plaques: [x, y, w, h]. */
+const HOTSPOTS = [
+  { tier:"apprentice", rect:[212, 114, 190, 100] },
+  { tier:"adept",      rect:[875, 114, 190, 100] },
+  { tier:"expert",     rect:[212, 503, 190, 101] },
+  { tier:"master",     rect:[875, 503, 190, 101] },
+  { tier:"slayer",     rect:[607, 301,  67, 284] }
+];
 
-      if(willComplete && tile.classList.contains('locked')){
-        const cat = TILE_CATEGORY[bossId];
-        const req = CATEGORY_UNLOCK_LEVEL[cat];
-        showNotification(`🔒 ${CATEGORY_LABEL[cat]} is locked — reach Level ${req} to unlock it.`, 2400);
-        return;
-      }
+/* The stone plaque that holds the level numbers — hovering it shows XP. */
+const LEVEL_PLAQUE = [184, 306, 202, 102];
 
-      tile.classList.toggle('completed');
-      const wasComplete = tile.classList.contains('completed');
-      const displayName = bossId.replace(/-/g,' ');
-      const tileXpVal = TILE_XP[bossId] || 0;
+/* Per-tile XP, weighted by how hard the boss actually is. Values are all
+   distinct and still sum to exactly 13,034,431 (level 99), with each tier
+   landing on its threshold: 13,363 (L30), 22,406 (L35), 273,742 (L60),
+   1,986,068 (L80). Edit freely, but keep those four running totals intact. */
+const TILE_XP = {
+  /* Apprentice — level 1 to 30 */
+  "Obor":577,
+  "Bryophyta":636,
+  "Crazy-Archaeologist":716,
+  "Deranged-Archaeologist":775,
+  "Chaos-Fanatic":855,
+  "Giant-Mole":925,
+  "Scurrius":994,
+  "Amoxliatl":1074,
+  "Barrows":1163,
+  "Sarachnis":1253,
+  "KBD":1352,
+  "Brutus":1452,
+  "Royal-Titans":1591,
 
-      saveProgress();
-      const result = applyXp(computeTotalXp());
+  /* Fight Caves — level 30 to 35 */
+  "Jad":9043,
 
-      const msg = wasComplete
-        ? `${displayName} marked as COMPLETE!`
-        : `${displayName} marked as INCOMPLETE.`;
-      showNotification(msg, 1800);
+  /* Adept — level 35 to 60 */
+  "Rex":11237,
+  "Supreme":12174,
+  "Prime":13110,
+  "Scorpia":14608,
+  "Chaos-Elemental":15919,
+  "Artio":17230,
+  "Calvarion":18541,
+  "Spindel":19852,
+  "Zalcano":21538,
+  "Moons":23411,
+  "Mad-Angel":25471,
+  "Kalphite-Queen":27718,
+  "Hueycoatl":30527,
 
-      if (wasComplete) {
-        const sound = document.getElementById("completion-sound");
-        sound.currentTime = 0;
-        sound.muted = isMuted;
-        sound.play().catch(()=>{});
-      }
+  /* Expert — level 60 to 80 */
+  "General-Graardor":75669,
+  "Kril-Tsutsaroth":84213,
+  "Commander-Zilyana":92756,
+  "Kreearra":101299,
+  "Vorkath":109843,
+  "Zulrah":118386,
+  "Hunllef":128150,
+  "Callisto":137914,
+  "Vetion":147677,
+  "Venenatis":157441,
+  "Phantom-Muspah":170867,
+  "Corporeal-Beast":185512,
+  "Nightmare":202599,
 
-      animateXpChange(result);
+  /* Slayer */
+  "Thermonuclear-Smoke-Devil":139430,
+  "Kraken":158020,
+  "Shellbane-Gryphon":182188,
+  "Grotesque-Guardians":206356,
+  "Abyssal-Sire":230524,
+  "Cerberus":254691,
+  "Alchemical-Hydra":283507,
+  "Araxxor":316040,
 
-      if(result.levelUp){
-        showNotification(`⭐ Congratulations, You Just Advanced!\nLevel ${result.level}!`, 2200, 1900);
-        checkNewlyUnlockedTiers(result.prevLevel, result.level, 4100);
-      }
-    }
+  /* Master */
+  "Duke-Sucellus":362517,
+  "The-Leviathan":395050,
+  "Maggot-King":420148,
+  "The-Whisperer":444316,
+  "Vardorvis":472201,
+  "Tombs-of-Amascut":500087,
+  "Corrupted-Hunllef":525185,
+  "Phosanis-Nightmare":550282,
+  "Nex":576309,
+  "Chambers-of-Xeric":608843,
+  "Yama":641376,
+  "Doom-of-Mokhaiotl":673910,
+  "Theatre-of-Blood":720386,
 
-    // announce any tiers that just crossed their unlock threshold
-    function checkNewlyUnlockedTiers(prevLevel, newLevel, startDelay){
-      let delay = startDelay || 0;
-      Object.keys(CATEGORY_UNLOCK_LEVEL).forEach(cat=>{
-        const req = CATEGORY_UNLOCK_LEVEL[cat];
-        if(req > prevLevel && req <= newLevel && req > 1){
-          showNotification(`🔓 ${CATEGORY_LABEL[cat]} unlocked!`, 2400, delay);
-          delay += 2500;
-        }
-      });
-    }
+  /* Colosseum & Inferno */
+  "Fortis-Colosseum":929531,
+  "Inferno":1450068,
 
-    // save progress to localStorage
-    function saveProgress(){
-      const progress = {};
-      bossTiles.forEach(id=>{
-        const tile = document.getElementById(id);
-        progress[id] = !!(tile && tile.classList.contains('completed'));
-      });
-      localStorage.setItem(storageKey, JSON.stringify(progress));
-    }
+  /* Bonus tiles — easy, and deliberately small so two clicks can't skip a tier gate */
+  "Hespori":2412,
+  "Skotizo":4986
+};
 
-    // load progress and set initial UI
-    function loadProgress(){
-      const raw = localStorage.getItem(storageKey);
-      if(raw){
-        try {
-          const progress = JSON.parse(raw);
-          bossTiles.forEach(id=>{
-            const tile = document.getElementById(id);
-            if(tile && progress[id]) tile.classList.add('completed');
-            else if(tile) tile.classList.remove('completed');
-          });
-        } catch(e){
-          console.warn('Failed to parse progress', e);
-        }
-      }
-      return applyXp(computeTotalXp());
-    }
+/* Standard RuneScape XP table. XP_TABLE[L] = total xp needed to reach level L. */
+const XP_TABLE = [0,0,83,174,276,388,512,650,801,969,1154,1358,1584,1833,2107,2411,2746,
+3115,3523,3973,4470,5018,5624,6291,7028,7842,8740,9730,10824,12031,13363,14833,16456,
+18247,20224,22406,24815,27473,30408,33648,37224,41171,45529,50339,55649,61512,67983,
+75127,83014,91721,101333,111945,123660,136594,150872,166636,184040,203254,224466,247886,
+273742,302288,333804,368599,407015,449428,496254,547953,605032,668051,737627,814445,
+899257,992895,1096278,1210421,1336443,1475581,1629200,1798808,1986068,2192818,2421087,
+2673114,2951373,3258594,3597792,3972294,4385776,4842295,5346332,5902831,6517253,7195629,
+7944614,8771558,9684577,10692629,11805606,13034431];
+const MAX_LEVEL = 99;
+const MAX_XP = XP_TABLE[MAX_LEVEL];
 
-    // sum xp of all completed tiles
-    function computeTotalXp(){
-      let xp = 0;
-      bossTiles.forEach(id=>{
-        const tile = document.getElementById(id);
-        if(tile && tile.classList.contains('completed')) xp += (TILE_XP[id] || 0);
-      });
-      return xp;
-    }
 
-    // lock/unlock tiles based on current Board Level
-    function updateLockedTiles(currentLevel){
-      bossTiles.forEach(id=>{
-        const tile = document.getElementById(id);
-        if(!tile) return;
-        const cat = TILE_CATEGORY[id];
-        const req = CATEGORY_UNLOCK_LEVEL[cat];
+/* ==========================================================================
+ * 2. DERIVED DATA
+ * ========================================================================== */
 
-        if(tile.classList.contains('completed')){
-          tile.classList.remove('locked');
-          tile.removeAttribute('title');
-          return;
-        }
+const IDS = Object.keys(TILES);
+const TIER_IDS = {};                       // tier -> [tile ids]
+IDS.forEach(id => {
+  const t = TILE_TIER[id] || "apprentice";
+  (TIER_IDS[t] = TIER_IDS[t] || []).push(id);
+});
 
-        if(currentLevel < req){
-          tile.classList.add('locked');
-          tile.title = `🔒 ${CATEGORY_LABEL[cat]} — unlocks at Level ${req}`;
-        } else {
-          tile.classList.remove('locked');
-          tile.title = '';
-          tile.removeAttribute('title');
-        }
-      });
-    }
+const pctX = px => (px / BOARD_W * 100).toFixed(4) + "%";
+const pctY = px => (px / BOARD_H * 100).toFixed(4) + "%";
+const fmt  = n  => n.toLocaleString("en-US");
+const nameOf = id => NAME_OVERRIDES[id] || id.replace(/-/g, " ");
 
-    // apply a new total-xp value to the DOM: both level numbers, xp bar,
-    // tooltip, tier-complete glow, and tile lock states. Returns info about
-    // the change.
-    function applyXp(newXp){
-      const prevXp = lastXp;
-      const prevLevel = levelForXp(prevXp);
-      const newLevel = levelForXp(newXp);
-      const xpDelta = newXp - prevXp;
+function kcTextFor(tier){
+  const t = TIERS[tier];
+  return t.kcText || `${t.kc} KC on that boss`;
+}
 
-      levelNumberEls.forEach(el=>{
-        el.textContent = newLevel;
-        el.classList.remove('pop');
-        void el.offsetWidth; // restart animation
-        el.classList.add('pop');
-      });
-      lastXp = newXp;
 
-      // xp progress bar within current level
-      const curLevelXp = XP_TABLE[newLevel];
-      const nextLevelXp = newLevel < MAX_LEVEL ? XP_TABLE[newLevel + 1] : curLevelXp;
-      const span = nextLevelXp - curLevelXp;
-      const progressed = span > 0 ? (newXp - curLevelXp) / span : 1;
-      xpBarFill.style.width = (Math.min(1, Math.max(0, progressed)) * 100) + '%';
+/* ==========================================================================
+ * 3. BUILD THE BOARD
+ * ========================================================================== */
 
-      // tooltip content
-      ttTotalXp.textContent = `Total XP: ${fmt(newXp)}`;
-      ttNextLevel.textContent = newLevel < MAX_LEVEL
-        ? `XP to next level: ${fmt(nextLevelXp - newXp)}`
-        : `Maxed out — Level 99!`;
+const board    = document.getElementById("image-container");
+const tileTip  = document.getElementById("tile-tip");
+const tierTip  = document.getElementById("tier-tip");
+const notice   = document.getElementById("notice");
+const xpFill   = document.getElementById("xp-bar-fill");
+const lvlEls   = [document.getElementById("level-slot-1"), document.getElementById("level-slot-2")];
+const tbStats  = document.getElementById("tb-stats");
+const btnSound = document.getElementById("btn-sound");
+const volSlider = document.getElementById("vol");
+const volVal    = document.getElementById("vol-val");
+const btnReset = document.getElementById("btn-reset");
 
-      // tier-complete glow only when truly maxed (all 65 tiles done)
-      if(newXp >= MAX_XP){
-        imgContainer.classList.add('tier-complete');
-      } else {
-        imgContainer.classList.remove('tier-complete');
-      }
+const tileEls = {};
 
-      updateLockedTiles(newLevel);
+IDS.forEach(id => {
+  const [x, y, w, h] = TILES[id];
+  const el = document.createElement("div");
+  el.id = id;
+  el.className = "boss-tile";
+  el.style.left   = pctX(x);
+  el.style.top    = pctY(y);
+  el.style.width  = pctX(w);
+  el.style.height = pctY(h);
+  el.tabIndex = 0;
+  el.setAttribute("role", "checkbox");
+  el.setAttribute("aria-checked", "false");
+  el.setAttribute("aria-label", nameOf(id));
+  board.appendChild(el);
+  tileEls[id] = el;
 
-      return { xp: newXp, level: newLevel, prevLevel, xpDelta, levelUp: newLevel > prevLevel };
-    }
+  el.addEventListener("click", () => toggle(id));
+  el.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(id); }
+  });
+  el.addEventListener("mouseenter", () => showTileTip(id));
+  el.addEventListener("focus",      () => showTileTip(id));
+  el.addEventListener("mouseleave", () => hide(tileTip));
+  el.addEventListener("blur",       () => hide(tileTip));
+});
 
-    // xp-drop animation: floating "+N xp" text near the level widget
-    function animateXpChange(result){
-      const xp = document.createElement('div');
-      xp.className = 'xp-drop';
-      if(result.xpDelta > 0) xp.textContent = `+${fmt(result.xpDelta)} xp`;
-      else if(result.xpDelta < 0) xp.textContent = `${fmt(result.xpDelta)} xp`;
-      else return;
+HOTSPOTS.forEach(hs => {
+  const [x, y, w, h] = hs.rect;
+  const el = document.createElement("div");
+  el.className = "hotspot";
+  el.style.left = pctX(x); el.style.top = pctY(y);
+  el.style.width = pctX(w); el.style.height = pctY(h);
+  el.tabIndex = 0;
+  el.setAttribute("aria-label", TIERS[hs.tier].label + " tier requirements");
+  board.appendChild(el);
 
-      dropAnchor.appendChild(xp);
-      xp.addEventListener('animationend', ()=> xp.remove());
-    }
+  const on  = () => { showTierTip(hs.tier, el); highlightTier(hs.tier, true);  };
+  const off = () => { hide(tierTip);            highlightTier(hs.tier, false); };
+  el.addEventListener("mouseenter", on);
+  el.addEventListener("focus", on);
+  el.addEventListener("mouseleave", off);
+  el.addEventListener("blur", off);
+});
 
-    // reset helper
-    function resetProgress(){
-      if(!confirm('Reset all progress?')) return;
-      bossTiles.forEach(id=>{
-        const tile = document.getElementById(id);
-        if(tile) tile.classList.remove('completed');
-      });
-      saveProgress();
-      lastXp = 0;
-      applyXp(0);
-      showNotification('Progress reset.');
-    }
+// level plaque hotspot
+(function(){
+  const [x, y, w, h] = LEVEL_PLAQUE;
+  const el = document.createElement("div");
+  el.className = "hotspot";
+  el.id = "level-hotspot";
+  el.style.left = pctX(x); el.style.top = pctY(y);
+  el.style.width = pctX(w); el.style.height = pctY(h);
+  el.tabIndex = 0;
+  el.setAttribute("aria-label", "Board level and XP");
+  board.appendChild(el);
+  el.addEventListener("mouseenter", () => showLevelTip(el));
+  el.addEventListener("focus",      () => showLevelTip(el));
+  el.addEventListener("mouseleave", () => hide(tierTip));
+  el.addEventListener("blur",       () => hide(tierTip));
+})();
 
-    // initialize on load
-    (function init(){
-      loadMuteState();
 
-      const startXp = computeTotalXp();
-      // seed lastXp so the very first applyXp call doesn't fire a delta popup
-      lastXp = startXp;
-      loadProgress();
-      levelNumberEls.forEach(el => el.classList.add('pop'));
+/* ==========================================================================
+ * 4. TOOLTIP PLACEMENT
+ * Positions a tooltip in board-pixel space, flipping above/below and
+ * clamping to the board edges so it never spills off-screen.
+ * ========================================================================== */
 
-      // keyboard support: allow toggling selected tile with Enter/Space if focused
-      document.querySelectorAll('.boss-tile').forEach(el=>{
-        el.tabIndex = 0;
-        el.addEventListener('keydown', (e)=>{
-          if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
-        });
-      });
-    })();
-  </script>
+function place(tip, anchorEl){
+  tip.style.visibility = "hidden";
+  tip.classList.add("show");
+
+  const bw = board.clientWidth, bh = board.clientHeight;
+  const ax = anchorEl.offsetLeft, ay = anchorEl.offsetTop;
+  const aw = anchorEl.offsetWidth, ah = anchorEl.offsetHeight;
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  const gap = bh * 0.012;
+  const pad = bw * 0.008;
+
+  let top = ay - th - gap;                       // prefer above
+  if (top < pad) top = ay + ah + gap;            // otherwise below
+  if (top + th > bh - pad) top = Math.max(pad, bh - pad - th);
+
+  let left = ax + aw / 2 - tw / 2;               // centred on the anchor
+  left = Math.max(pad, Math.min(left, bw - pad - tw));
+
+  tip.style.left = left + "px";
+  tip.style.top  = top + "px";
+  tip.style.visibility = "";
+}
+
+function hide(tip){ tip.classList.remove("show"); }
+
+function highlightTier(tier, on){
+  (TIER_IDS[tier] || []).forEach(id => tileEls[id].classList.toggle("tier-hi", on));
+}
+
+
+/* ==========================================================================
+ * 5. TOOLTIP CONTENT
+ * ========================================================================== */
+
+function showTileTip(id){
+  const tier = TILE_TIER[id];
+  const t = TIERS[tier];
+  const el = tileEls[id];
+  const done = el.classList.contains("completed");
+  const locked = el.classList.contains("locked");
+
+  let hint, cls;
+  if (locked)    { hint = `🔒 Reach Level ${t.unlock} to unlock this tier`; cls = "lock"; }
+  else if (done) { hint = "✔ Complete — click to un-mark"; cls = "done"; }
+  else           { hint = "Click to mark complete"; cls = ""; }
+
+  const caLine = t.ca ? ` <b>or</b> green CA log` : ` <b>·</b> kill required`;
+
+  tileTip.innerHTML =
+    `<span class="t-name">${nameOf(id)}</span>` +
+    `<span class="t-sub">${t.label} · unlocks at Level ${t.unlock}</span>` +
+    `<span class="t-rule">${kcTextFor(tier)}${caLine} · ` +
+      `<span class="t-xp">+${fmt(TILE_XP[id] || 0)} xp</span></span>` +
+    `<span class="t-hint ${cls}">${hint}</span>`;
+
+  place(tileTip, el);
+}
+
+function showTierTip(tier, anchorEl){
+  const t = TIERS[tier];
+  const ids = TIER_IDS[tier] || [];
+  const done = ids.filter(id => tileEls[id].classList.contains("completed")).length;
+  const total = ids.length;
+  const vals = ids.map(id => TILE_XP[id] || 0).sort((a, b) => a - b);
+  const range = vals.length > 1 && vals[0] !== vals[vals.length - 1]
+    ? `${fmt(vals[0])}–${fmt(vals[vals.length - 1])}`
+    : fmt(vals[0] || 0);
+  const unlocked = currentLevel >= t.unlock;
+
+  const ways =
+    `<div class="t-way"><span><b>${kcTextFor(tier)}</b></span></div>` +
+    (t.ca
+      ? `<div class="t-or">OR</div>` +
+        `<div class="t-way"><span>Green-log that boss's <b>Combat Achievements</b></span></div>`
+      : "");
+  const lead = t.ca
+    ? "Mark a tile complete with either:"
+    : "The only way to clear this tile:";
+  const killOnly = t.ca ? "" : "Combat Achievements can't clear it — the kill is the requirement.";
+
+  tierTip.innerHTML =
+    `<div class="t-head">` +
+      `<span class="t-name">${t.label}</span>` +
+      `<span class="t-unlock">${unlocked ? "✔ unlocked" : "🔒 Level " + t.unlock}</span>` +
+    `</div>` +
+    `<span class="t-lead">${lead}</span>` +
+    `<div class="t-ways">${ways}</div>` +
+    (t.note || killOnly ? `<span class="t-lead">${t.note || killOnly}</span>` : "") +
+    `<div id="tier-mini"><i style="width:${total ? (done / total * 100) : 0}%"></i></div>` +
+    `<div class="t-foot">` +
+      `<span><b>${done}</b> / ${total} tiles done</span>` +
+      `<span>+<b>${range}</b> xp</span>` +
+    `</div>`;
+
+  place(tierTip, anchorEl);
+}
+
+function showLevelTip(anchorEl){
+  const lvl = currentLevel;
+  const cur = XP_TABLE[lvl];
+  const next = lvl < MAX_LEVEL ? XP_TABLE[lvl + 1] : cur;
+  const doneCount = IDS.filter(id => tileEls[id].classList.contains("completed")).length;
+
+  tierTip.innerHTML =
+    `<div class="t-head">` +
+      `<span class="t-name">Board Level ${lvl}</span>` +
+      `<span class="t-unlock">${doneCount} / ${IDS.length} tiles</span>` +
+    `</div>` +
+    `<div class="t-foot" style="border:0;margin:0;padding:0;flex-direction:column;gap:.15cqw;align-items:flex-start">` +
+      `<span>Total XP: <b>${fmt(totalXp)}</b></span>` +
+      `<span>${lvl < MAX_LEVEL
+          ? `XP to level ${lvl + 1}: <b>${fmt(next - totalXp)}</b>`
+          : `<b>Maxed — every tile complete!</b>`}</span>` +
+    `</div>`;
+
+  place(tierTip, anchorEl);
+}
+
+
+/* ==========================================================================
+ * 6. MESSAGE QUEUE  (parchment plaque on the right)
+ * ========================================================================== */
+
+let msgQueue = [], msgBusy = false;
+
+function say(text, opts = {}){
+  msgQueue.push(Object.assign({ text, ms: 1900, tone: "", big: false }, opts));
+  if (!msgBusy) nextMsg();
+}
+
+function nextMsg(){
+  const m = msgQueue.shift();
+  if (!m){ msgBusy = false; board.classList.remove("msg-live"); return; }
+  msgBusy = true;
+  board.classList.add("msg-live");
+  notice.textContent = m.text;
+  // keep long messages inside the parchment plaque
+  const lines = m.text.split("\n");
+  const long = lines.length > 2 || lines.some(l => l.length > 34);
+  notice.className = "show" + (m.tone ? " " + m.tone : "") +
+                     (m.big && !long ? " big" : "") + (long ? " long" : "");
+  setTimeout(() => {
+    notice.classList.remove("show");
+    setTimeout(nextMsg, 220);
+  }, m.ms);
+}
+
+function clearMessages(){ msgQueue.length = 0; }
+
+
+/* ==========================================================================
+ * 7. STATE
+ * ========================================================================== */
+
+let totalXp = 0;
+let currentLevel = 1;
+let soundOn = true;
+let volume = 0.7;   // 0 to 1
+
+function levelForXp(xp){
+  for (let L = MAX_LEVEL; L >= 1; L--) if (xp >= XP_TABLE[L]) return L;
+  return 1;
+}
+
+function computeXp(){
+  let xp = 0;
+  IDS.forEach(id => { if (tileEls[id].classList.contains("completed")) xp += (TILE_XP[id] || 0); });
+  return xp;
+}
+
+function save(){
+  const done = IDS.filter(id => tileEls[id].classList.contains("completed"));
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ done, sound: soundOn, volume }));
+  } catch(e){ /* private browsing — progress just won't persist */ }
+}
+
+function load(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (typeof data.sound === "boolean") soundOn = data.sound;
+    if (typeof data.volume === "number") volume = Math.min(1, Math.max(0, data.volume));
+    (data.done || []).forEach(id => { if (tileEls[id]) tileEls[id].classList.add("completed"); });
+  } catch(e){ console.warn("Could not read saved progress:", e); }
+}
+
+function playSfx(which){
+  if (!soundOn || volume <= 0) return;
+  const a = document.getElementById(which);
+  if (!a) return;
+  try { a.volume = volume; a.currentTime = 0; a.play().catch(() => {}); } catch(e){}
+}
+
+
+/* ==========================================================================
+ * 8. RENDER
+ * ========================================================================== */
+
+function render(prevLevel){
+  totalXp = computeXp();
+  const lvl = levelForXp(totalXp);
+  const levelled = prevLevel !== undefined && lvl !== prevLevel;
+  currentLevel = lvl;
+
+  lvlEls.forEach(el => {
+    el.textContent = lvl;
+    if (levelled){ el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop"); }
+  });
+
+  const cur = XP_TABLE[lvl];
+  const next = lvl < MAX_LEVEL ? XP_TABLE[lvl + 1] : cur;
+  const span = next - cur;
+  xpFill.style.width = (span > 0 ? Math.min(1, Math.max(0, (totalXp - cur) / span)) * 100 : 100) + "%";
+
+  board.classList.toggle("tier-complete", totalXp >= MAX_XP);
+
+  // lock / unlock tiles
+  IDS.forEach(id => {
+    const el = tileEls[id];
+    const req = TIERS[TILE_TIER[id]].unlock;
+    const done = el.classList.contains("completed");
+    el.classList.toggle("locked", !done && lvl < req);
+    el.setAttribute("aria-checked", done ? "true" : "false");
+    el.setAttribute("aria-disabled", (!done && lvl < req) ? "true" : "false");
+  });
+
+  const doneCount = IDS.filter(id => tileEls[id].classList.contains("completed")).length;
+  tbStats.innerHTML =
+    `Board Level <b>${lvl}</b>` +
+    `<span class="sep">|</span>Tiles <b>${doneCount}</b> / ${IDS.length}` +
+    `<span class="sep">|</span><span class="hide-sm">XP <b>${fmt(totalXp)}</b> / ${fmt(MAX_XP)}</span>`;
+
+  return lvl;
+}
+
+
+/* ==========================================================================
+ * 9. INTERACTION
+ * ========================================================================== */
+
+function toggle(id){
+  const el = tileEls[id];
+  const tier = TILE_TIER[id];
+  const t = TIERS[tier];
+  const willComplete = !el.classList.contains("completed");
+
+  if (willComplete && el.classList.contains("locked")){
+    clearMessages();
+    say(`🔒 ${t.label} is locked.\nReach Board Level ${t.unlock} to unlock it.`, { ms: 2300, tone: "warn" });
+    return;
+  }
+
+  const prevLevel = currentLevel;
+  el.classList.toggle("completed");
+  const done = el.classList.contains("completed");
+  const before = totalXp;
+
+  if (done){ el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+
+  save();
+  const lvl = render(prevLevel);
+  xpDrop(totalXp - before);
+
+  clearMessages();
+  say(done ? `${nameOf(id)}\nmarked COMPLETE` : `${nameOf(id)}\nmarked incomplete`,
+      { ms: 1600, tone: done ? "good" : "" });
+
+  if (done) playSfx("sfx-complete");
+
+  if (lvl > prevLevel){
+    playSfx("sfx-levelup");
+    say(`Congratulations!\nTier Level ${lvl}`, { ms: 2400, tone: "good", big: true });
+    Object.keys(TIERS).forEach(k => {
+      const req = TIERS[k].unlock;
+      if (req > prevLevel && req <= lvl && req > 1)
+        say(`🔓 ${TIERS[k].label} unlocked!`, { ms: 2100, tone: "good" });
+    });
+  }
+
+  // keep whichever tooltip is open in sync with the new state
+  if (tileTip.classList.contains("show")) showTileTip(id);
+}
+
+function xpDrop(delta){
+  if (!delta) return;
+  const el = document.createElement("div");
+  el.className = "xp-drop" + (delta < 0 ? " minus" : "");
+  el.textContent = (delta > 0 ? "+" : "") + fmt(delta) + " xp";
+  board.appendChild(el);
+  el.addEventListener("animationend", () => el.remove());
+}
+
+/* ---- toolbar: sound ---- */
+function paintSoundBtn(){
+  const live = soundOn && volume > 0;
+  btnSound.textContent = live ? "🔊 Sound" : "🔇 Muted";
+  btnSound.classList.toggle("off", !live);
+  btnSound.setAttribute("aria-pressed", String(live));
+
+  const pct = Math.round(volume * 100);
+  volSlider.value = pct;
+  volSlider.style.setProperty("--vol-pct", pct + "%");
+  volSlider.classList.toggle("muted", !soundOn);
+  volVal.textContent = pct + "%";
+}
+
+btnSound.addEventListener("click", () => {
+  soundOn = !soundOn;
+  // un-muting with the slider at zero would still be silent, so give it a level
+  if (soundOn && volume <= 0) volume = 0.5;
+  paintSoundBtn();
+  save();
+});
+
+volSlider.addEventListener("input", () => {
+  volume = volSlider.value / 100;
+  soundOn = volume > 0;      // dragging to zero mutes, dragging up un-mutes
+  paintSoundBtn();
+  save();
+});
+// play a tick when you let go, so you can hear the level you just set
+volSlider.addEventListener("change", () => playSfx("sfx-complete"));
+
+let resetArmed = null;
+btnReset.addEventListener("click", () => {
+  if (!resetArmed){
+    btnReset.textContent = "Click again to confirm";
+    btnReset.classList.add("armed");
+    resetArmed = setTimeout(disarmReset, 4000);
+    return;
+  }
+  disarmReset();
+  IDS.forEach(id => tileEls[id].classList.remove("completed"));
+  save();
+  render();
+  clearMessages();
+  say("Progress reset.", { ms: 1800, tone: "warn" });
+});
+function disarmReset(){
+  clearTimeout(resetArmed); resetArmed = null;
+  btnReset.textContent = "↺ Reset";
+  btnReset.classList.remove("armed");
+}
+
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "BUTTON" || e.target.tagName === "INPUT") return;
+  if (e.key === "m" || e.key === "M"){ soundOn = !soundOn; paintSoundBtn(); save(); }
+  if (e.key === "Escape"){ hide(tileTip); hide(tierTip); }
+});
+
+
+/* ==========================================================================
+ * 10. BOOT
+ * ========================================================================== */
+
+// Warn (gently) if the background art isn't sitting next to this file.
+(function checkArt(){
+  const probe = new Image();
+  probe.onerror = () => {
+    board.classList.add("no-art");
+    say(`Background image not found:\n${BOARD_IMAGE}`, { ms: 6000, tone: "warn" });
+  };
+  probe.src = BOARD_IMAGE;
+})();
+
+load();
+paintSoundBtn();
+render();
+</script>
 </body>
 </html>
