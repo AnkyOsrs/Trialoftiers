@@ -312,7 +312,7 @@ body{
 }
 
 /* ==========================================================================
-   BOARD LEVEL WIDGET
+   Prowess level WIDGET
    The stone plaque on the left is the "skill orb": hammer art, two level
    numbers split by the engraved diagonal, xp bar underneath.
    ========================================================================== */
@@ -566,7 +566,7 @@ body{
   <div id="notice" aria-live="polite"></div>
   <div id="tier-badge">Trial of Tiers Completed!</div>
 
-  <!-- board level widget -->
+  <!-- Prowess level widget -->
   <div id="level-wrap">
     <div class="level-number" id="level-slot-1">1</div>
     <div class="level-number" id="level-slot-2">1</div>
@@ -947,7 +947,7 @@ HOTSPOTS.forEach(hs => {
   el.style.left = pctX(x); el.style.top = pctY(y);
   el.style.width = pctX(w); el.style.height = pctY(h);
   el.tabIndex = 0;
-  el.setAttribute("aria-label", "Board level and XP");
+  el.setAttribute("aria-label", "Prowess level and XP");
   board.appendChild(el);
   el.addEventListener("mouseenter", () => showLevelTip(el));
   el.addEventListener("focus",      () => showLevelTip(el));
@@ -1067,7 +1067,7 @@ function showLevelTip(anchorEl){
 
   tierTip.innerHTML =
     `<div class="t-head">` +
-      `<span class="t-name">Board Level ${lvl}</span>` +
+      `<span class="t-name">Prowess Level ${lvl}</span>` +
       `<span class="t-unlock">${doneCount} / ${IDS.length} tiles</span>` +
     `</div>` +
     `<div class="t-foot" style="border:0;margin:0;padding:0;flex-direction:column;gap:.15cqw;align-items:flex-start">` +
@@ -1192,7 +1192,7 @@ function render(prevLevel){
 
   const doneCount = IDS.filter(id => tileEls[id].classList.contains("completed")).length;
   tbStats.innerHTML =
-    `Board Level <b>${lvl}</b>` +
+    `Prowess level <b>${lvl}</b>` +
     `<span class="sep">|</span>Tiles <b>${doneCount}</b> / ${IDS.length}` +
     `<span class="sep">|</span><span class="hide-sm">XP <b>${fmt(totalXp)}</b> / ${fmt(MAX_XP)}</span>`;
 
@@ -1212,7 +1212,7 @@ function toggle(id){
 
   if (willComplete && el.classList.contains("locked")){
     clearMessages();
-    say(`🔒 ${t.label} is locked.\nReach Board Level ${t.unlock} to unlock it.`, { ms: 2300, tone: "warn" });
+    say(`🔒 ${t.label} is locked.\nReach Prowess level ${t.unlock} to unlock it.`, { ms: 2300, tone: "warn" });
     return;
   }
 
